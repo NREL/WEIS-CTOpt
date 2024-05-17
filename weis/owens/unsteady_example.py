@@ -1,6 +1,6 @@
 import numpy as np
 import openmdao.api as om
-from openmdao_owens_in_progress import *
+from openmdao_owens import *
 
 # Unsteady coupled analysis example
 model = om.Group()
@@ -36,25 +36,48 @@ options = {
 }
 model.add_subsystem("crossflow", OWENSUnsteadySetup(modeling_options=options))
 
-prob = om.Problem(model)
-prob.setup()
-prob.set_val("crossflow.towerHeight", 5.0)
-prob.run_model()
-print("Tower height of 5 m: "+str(prob.get_val("crossflow.tower_mass")))
-prob.set_val("crossflow.towerHeight", 3.0)
-prob.run_model()
-print("Tower height of 3 m: "+str(prob.get_val("crossflow.tower_mass")))
+# Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens" for this example to work
+
+# Tower sanity check problem
+tower_prob = om.Problem(model)
+tower_prob.setup()
+tower_prob.set_val("crossflow.towerHeight", 5.0)
+tower_prob.run_model()
+print("Tower height of 5 m: "+str(tower_prob.get_val("crossflow.tower_mass")))
+tower_prob.set_val("crossflow.towerHeight", 3.0)
+tower_prob.run_model()
+print("Tower height of 3 m: "+str(tower_prob.get_val("crossflow.tower_mass")))
 
 # run opt
-prob.driver = om.pyOptSparseDriver()
-prob.driver.options["optimizer"] = "SLSQP"
+tower_prob.driver = om.pyOptSparseDriver()
+tower_prob.driver.options["optimizer"] = "SLSQP"
 
-prob.model.add_design_var('crossflow.towerHeight', lower=3.0, upper=5.0)
-prob.model.add_objective('crossflow.first_tower_mass')
-prob.setup()
-prob.run_driver()
+tower_prob.model.add_design_var('crossflow.towerHeight', lower=3.0, upper=5.0)
+tower_prob.model.add_objective('crossflow.first_tower_mass')
+tower_prob.setup()
+tower_prob.run_driver()
 
-print("Optimal height: "+str(prob.get_val("crossflow.towerHeight")))
+print("Optimal height: "+str(tower_prob.get_val("crossflow.towerHeight")))
 print("This should be 3 m")
+
+# Working on more realistic problem2
+prob = om.Problem(model)
+prob.setup()
+prob.set_val("crossflow.Blade_Height", 54.0)
+prob.set_val("crossflow.Blade_Radius", 110.0)
+prob.run_model()
+
+# Right now, this isn't working because the generator power from OWENS are zero
+print("Blade height of 54 m and blade radius of 110 m")
+print("Mean power is : "+str(prob.get_val("crossflow.GenPower")))
+print("Turbine mass is : "+str(prob.get_val("crossflow.GenPower")))
+prob.set_val("crossflow.Blade_Height", 56.0)
+prob.set_val("crossflow.Blade_Radius", 120.0)
+prob.run_model()
+print("Blade height of 56 m and blade radius of 120 m")
+print("Mean power is : "+str(prob.get_val("crossflow.GenPower")))
+print("Turbine mass is : "+str(prob.get_val("crossflow.GenPower")))
+
+
 
 

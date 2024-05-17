@@ -49,6 +49,7 @@ from juliacall import Pkg as jlPkg
 
 
 class OWENS_WEIS(om.Group):
+    # TODO: This was intended to do common setup
 
     def intialize(self):
         self.options.declare("modeling_options")
@@ -326,6 +327,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
     def initialize(self):
         self.options.declare("modeling_options")
         # self.options.declare("opt_options")
+        # TODO: we can add an option here to output the intermediate yaml file, like
+        # self.options.declare("owens_yaml")
 
     def setup(self):
         modopt = self.options['modeling_options']
@@ -451,11 +454,21 @@ class OWENSUnsteadySetup(ExplicitComponent):
         #     self.add_discrete_input("node_names", val=[""] * n_nodes)
 
         # Outputs
+        # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens" for this to work
         self.add_output("tower_mass", units="kg", val=np.ones(7), desc="Tower mass breakdown")
         self.add_output("first_tower_mass", units="kg", val=1.0)
-
+        self.add_output("GenPower", units="W", val=0.0)
+        self.add_output("mass", units="kg", val=np.ones(7), desc="Mass")
 
     def initialize_model(self):
+        # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
+        # and then update the model options
+        # For example
+        # use_yaml = self.options("owens_yaml")
+        # If use_yaml:
+        #     write updated yaml input given the input values
+        #     call self.model = jl.OWENS.MasterInput(new_master_file) to initialize the model with the updated yaml input file
+        # else: change the inputs directly as follows
         self.model.analysisType = self.analysis_type
         self.model.turbineType = self.turbine_type
         self.model.controlStrategy = self.control_strategy
@@ -483,9 +496,18 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.model.structuralModel = self.structuralModel
         # self.model.nonlinear = self.structuralNonlinear
 
+    # def update_model_with_yaml(self, inputs):
+    # TODO: this is for updating the model using the yaml files, will be called in compute
+    # First take the inputs and write out the yaml file
+    # a = inputs["a"]
+    # write updated yaml input given the input values
+    # call self.model = jl.OWENS.MasterInput(new_master_file) to initialize the model with the updated yaml input file
+
     def setup_partials(self):
         # This can be set analytically from julia AD
         self.declare_partials("first_tower_mass", "towerHeight", method="fd")
+        self.declare_partials("GenPower", "*", method="fd")
+        self.declare_partials("mass", "*", method="fd")
 
     def compute(self, inputs, outputs):
 
@@ -509,6 +531,12 @@ class OWENSUnsteadySetup(ExplicitComponent):
         ncelem = int(inputs["ncelem"][0])
         nselem = int(inputs["nselem"][0])
 
+        # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
+        # and then update the model inputs
+        # if use_yaml:
+        #   self.update_model_with_yaml(inputs):
+        # else update the model directly as follows:
+
         self.model.eta = eta
         self.model.Blade_Radius = Blade_Radius
         self.model.Blade_Height = Blade_Height
@@ -530,8 +558,11 @@ class OWENSUnsteadySetup(ExplicitComponent):
         results = jl.OWENS.runOWENS(self.model,"../../../OWENS.jl/docs/src/literate/", verbosity=0)
 
         # Unpack outputs
-        outputs["tower_mass"] = results
-        outputs["first_tower_mass"] = results[0]
+        # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens"
+        outputs["tower_mass"] = results[0]
+        outputs["first_tower_mass"] = results[0][0]
+        outputs["GenPower"] = np.mean(results[1])
+        outputs["mass"] = results[2]
 
 
 

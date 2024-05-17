@@ -1,6 +1,6 @@
 import numpy as np
 import openmdao.api as om
-from openmdao_owens_in_progress import *
+from openmdao_owens import *
 
 model = om.Group()
 
@@ -37,9 +37,9 @@ model.add_subsystem("crossflow_structure", OWENSStructSetup(modeling_options=opt
 
 prob = om.Problem(model)
 prob.setup()
-prob.set_val("crossflow_structure.Blade_Height", 40.0)
+prob.set_val("crossflow_structure.Blade_Height", 30.0)
 prob.run_model()
-print("Blade height of 40 m: "+str(prob.get_val("crossflow_structure.blade_mass")))
+print("Blade height of 30 m: "+str(prob.get_val("crossflow_structure.blade_mass")))
 prob.set_val("crossflow_structure.Blade_Height", 40.0)
 prob.run_model()
 print("Blade height of 40 m: "+str(prob.get_val("crossflow_structure.blade_mass")))
