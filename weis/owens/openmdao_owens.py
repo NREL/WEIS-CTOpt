@@ -42,7 +42,7 @@ from openmdao.api                           import ExplicitComponent
 # Juliacall for OWENS
 from juliacall import Main as jl
 from juliacall import Pkg as jlPkg
-
+from OWENS_output_reader import *
 
 # if MPI:
 #     from mpi4py   import MPI
@@ -337,6 +337,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         jlPkg.activate(OWENS_directory)
         jl.seval("using OWENS")
+        jl.seval("using OWENSAero")
 
         master_file = modopt["master_input"]
 
@@ -352,6 +353,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Probably needs to be like modopt["crossflow"]["analysis_type"]
         self.analysis_type = modopt["analysis_type"]
         self.turbine_type = modopt["turbine_type"]
+        self.eta = modopt["eta"] # Now eta is a modeling option
         self.control_strategy = modopt["control_strategy"]
         self.aeroModel = modopt["aeroModel"]
         self.adi_lib = modopt["adi_lib"]
@@ -367,20 +369,19 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.initialize_model()
 
         # Blade inputs, geometry and discretization
-        self.add_input("eta", val=0.5, desc="blade mount point ratio, 0.5 is the blade half chord is perpendicular with the axis of rotation, 0.25 is the quarter chord, etc")
         self.add_input("Nbld", val=3, desc="number of blades")
         self.add_input("Blade_Radius", val=54.01123056)
         self.add_input("Blade_Height", val=110.1829092)
-        self.add_input("towerHeight", val=3.0)
+        self.add_input("towerHeight", val=3.0) # Towerheight is a modeling option in OWENS example, but I think it makes sense to be a input so that it can potentially be a dv
 
 
         # Blade inputs for composites
         # self.add_input('structuralModel', val='GX', desc="Structural models, GX, TNB, or ROM")
         # self.add_input('nonlinear', val=False, desc="[]")
-        self.add_input("ntelem", val=10.0, desc="Tower elements in each")
-        self.add_input("nbelem", val=60.0, desc="Blade elements in each")
-        self.add_input("ncelem", val=10.0, desc="Central cable elements in each if turbine type is ARCUS")
-        self.add_input("nselem", val=60.0, desc="Blade elements in each")
+        self.add_input("ntelem", val=10, desc="Tower elements in each")
+        self.add_input("nbelem", val=60, desc="Blade elements in each")
+        self.add_input("ncelem", val=10, desc="Central cable elements in each if turbine type is ARCUS")
+        self.add_input("nselem", val=60, desc="Blade elements in each")
 
 
         # Solver options (come from modeling options)
@@ -400,7 +401,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # operation parameters
         self.add_input("rho", val=1.225, units="kg", desc="Fluid dendity")
-        self.add_input("Vinf", val=17.2, units="m/s", desc="Inflow velocity")
+        self.add_input("mu", val=0.0, units='kg/(m*s)', desc="Fluid dynamic viscosity")
+        self.add_input("Vinf", val=17.2, units="m/s", desc="Inflow velocity") # Same for Vinf, it is now a modeling option in owens example, keeping it as input for now, so that DLCs can be taken care internally
 
 
         # Ignore openfast parts for now
@@ -455,10 +457,18 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # Outputs
         # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens" for this to work
-        self.add_output("tower_mass", units="kg", val=np.ones(7), desc="Tower mass breakdown")
-        self.add_output("first_tower_mass", units="kg", val=1.0)
-        self.add_output("GenPower", units="W", val=0.0)
-        self.add_output("mass", units="kg", val=np.ones(7), desc="Mass")
+        self.add_output("power", units="W", val=0.0)
+        self.add_output("lcoe", units="USD/MW/h", val=0.0, desc="Pseudo levelized cost of energy")
+        self.add_output("SF", val=0.0, desc="Safety factor constraint")
+        self.add_output("fatigue_damage", val=0.0, desc="20 year fatigue damage")
+
+        # discretization
+        # The control point setup should be part of the optimization setup
+        # Here should just take in the x_values
+        # n_control_pts = len()
+        self.add_input("blade_x", units="m")
+        self.add_input("blade_y", units="m")
+        self.add_input("blade_z", units="m")
 
     def initialize_model(self):
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
@@ -505,16 +515,25 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
     def setup_partials(self):
         # This can be set analytically from julia AD
-        self.declare_partials("first_tower_mass", "towerHeight", method="fd")
-        self.declare_partials("GenPower", "*", method="fd")
-        self.declare_partials("mass", "*", method="fd")
+        self.declare_partials("power", "*", method="fd")
+        self.declare_partials("lcoe", "*", method="fd")
+        self.declare_partials("SF", "*", method="fd")
+        self.declare_partials("fatigue_damage", "*", method="fd")
 
     def compute(self, inputs, outputs):
+        modopt = self.options["modeling_options"]
 
-        eta = inputs["eta"][0]
+        path = self.run_path
+        eta = modopt["eta"][0]
+        number_of_blades = inputs["Nbld"]
         Blade_Radius = inputs["Blade_Radius"][0]
         Blade_Height = inputs["Blade_Height"][0]
         towerHeight = inputs["towerHeight"][0]
+
+        # Blade dicretization
+        blade_x = inputs["blade_x"]
+        blade_y = inputs["blade_y"]
+        blade_z = inputs["blade_z"]
 
         rho = inputs["rho"][0]
         Vinf = inputs["Vinf"][0]
@@ -537,32 +556,232 @@ class OWENSUnsteadySetup(ExplicitComponent):
         #   self.update_model_with_yaml(inputs):
         # else update the model directly as follows:
 
-        self.model.eta = eta
-        self.model.Blade_Radius = Blade_Radius
-        self.model.Blade_Height = Blade_Height
-        self.model.towerHeight = towerHeight
+        AModel = self.aeroModel
+        mesh_type = self.turbine_type
 
-        self.model.rho = rho
-        self.model.Vinf = Vinf
-        self.model.RPM = RPM
-        self.model.numTS = numTS
-        self.model.delta_t = delta_t
-        self.model.Nslices = Nslices
-        self.model.ntheta = ntheta
+        setup_outputs = jl.OWENS.setupOWENS(jl.OWENSAero, path, 
+                                            rho=rho,
+                                            Nslices=Nslices,
+                                            ntheta=ntheta,
+                                            RPM=RPM,
+                                            Vinf=Vinf,
+                                            eta=eta,
+                                            B = number_of_blades,
+                                            H = np.maximum(blade_z),
+                                            R = np.maximum(blade_x),
+                                            shapeZ=blade_z,
+                                            shapeY=blade_y,
+                                            shapeX=blade_x,
+                                            ifw=self.Turbulence["ifw"],
+                                            WindType=self.Turbulence["WindType"],
+                                            delta_t=delta_t,
+                                            numTS=numTS,
+                                            adi_lib=self.adi_lib,
+                                            adi_rootname=self.adi_rootname,
+                                            AD15hubR = 0.1,
+                                            windINPfilename=self.Turbulence["windINPfilename"],
+                                            ifw_libfile=self.Turbulence["ifw_libfile"],
+                                            NuMad_geom_xlscsv_file_twr=self.NumadSpec["NuMad_geom_xlscsv_file_twr"],
+                                            NuMad_mat_xlscsv_file_twr=self.NumadSpec["NuMad_mat_xlscsv_file_twr"],
+                                            NuMad_geom_xlscsv_file_bld=self.NumadSpec["NuMad_geom_xlscsv_file_bld"],
+                                            NuMad_mat_xlscsv_file_bld=self.NumadSpec["NuMad_mat_xlscsv_file_bld"],
+                                            NuMad_geom_xlscsv_file_strut=self.NumadSpec["NuMad_geom_xlscsv_file_strut"],
+                                            NuMad_mat_xlscsv_file_strut=self.NumadSpec["NuMad_mat_xlscsv_file_strut"],
+                                            ntelem=ntelem,
+                                            nbelem=nbelem,
+                                            ncelem=ncelem,
+                                            nselem=nselem,
+                                            joint_type = 0,
+                                            c_mount_ratio = 0.05,
+                                            strut_twr_mountpoint = [0.11,0.89], #TODO
+                                            strut_bld_mountpoint = [0.11,0.89],
+                                            AModel=AModel, #AD, DMS, AC
+                                            DSModel="BV",
+                                            RPI=True,
+                                            cables_connected_to_blade_base = True,
+                                            meshtype = mesh_type
+                                            )
 
-        self.model.ntelem = ntelem
-        self.model.nbelem = nbelem
-        self.model.ncelem = ncelem
-        self.model.nselem = nselem
+        # Parse setup outputs
+        mymesh = setup_outputs[0]
+        myel = setup_outputs[1]
+        myort = setup_outputs[2]
+        myjoint = setup_outputs[3]
+        sectionPropsArray = setup_outputs[4]
+        mass_twr = setup_outputs[5]
+        mass_bld = setup_outputs[6]
+        stiff_twr = setup_outputs[7]
+        stiff_bld = setup_outputs[8]
+        bld_precompinput = setup_outputs[9]
+        bld_precompoutput = setup_outputs[10]
+        plyprops_bld = setup_outputs[11]
+        numadIn_bld = setup_outputs[12]
+        lam_U_bld = setup_outputs[13]
+        lam_L_bld = setup_outputs[14]
+        twr_precompinput = setup_outputs[15]
+        twr_precompoutput = setup_outputs[16]
+        plyprops_twr = setup_outputs[17]
+        numadIn_twr = setup_outputs[18]
+        lam_U_twr = setup_outputs[19]
+        lam_L_twr = setup_outputs[20]
+        aeroForces = setup_outputs[21]
+        deformAero = setup_outputs[22]
+        mass_breakout_blds = setup_outputs[23]
+        mass_breakout_twr = setup_outputs[24]
+        system = setup_outputs[25]
+        assembly = setup_outputs[26]
+        sections = setup_outputs[27]
+        AD15bldNdIdxRng = setup_outputs[28]
+        AD15bldElIdxRng = setup_outputs[29]
 
-        results = jl.OWENS.runOWENS(self.model,"../../../OWENS.jl/docs/src/literate/", verbosity=0)
+
+        # This is boundary condition
+        pBC = np.array([[1, 1, 0],
+        [1, 2, 0],
+        [1, 3, 0],
+        [1, 4, 0],
+        [1, 5, 0],
+        [1, 6, 0]])
+
+        if AModel == "AD":
+            AD15On = True
+        else:
+            AD15On = False
+
+        
+        structural_model_inputs = jl.OWENS.Inputs(analysisType = self.structuralModel,
+                                 tocp = [0.0, 100000.1],
+                                 Omegaocp = np.array([RPM, RPM])/60,
+                                 tocp_Vinf = np.array([0.0, 100000.1]),
+                                 Vinfocp = np.array([Vinf, Vinf]),
+                                 numTS=numTS,
+                                 delta_t = delta_t,
+                                 AD15On = AD15On,
+                                 aeroLoadsOn = 2)
+
+
+        feamodel = jl.OWENS.FEAModel(analysisType = self.structuralModel,
+                                     outFilename = "none",
+                                joint = myjoint,
+                                platformTurbineConnectionNodeNumber = 1,
+                                pBC=pBC,
+                                nlOn=True,
+                                numNodes = mymesh.numNodes,
+                                numModes = 200,
+                                RayleighAlpha = 0.05,
+                                RayleighBeta = 0.05,
+                                iterationType = "DI")
+        
+        
+        unsteady_outputs = jl.OWENS.Unsteady_Land(inputs=structural_model_inputs,
+                                                  system = system,
+                                                  assembly = assembly,
+                                                  topModel = feamodel,
+                                                  topMesh = mymesh,
+                                                  topEl = myel,
+                                                  aero = aeroForces,
+                                                  deformAero = deformAero
+                                                  )
+        
+        # Parse unsteady run output
+        t = unsteady_outputs[0]
+        aziHist = unsteady_outputs[0]
+        OmegaHist = unsteady_outputs[0]
+        OmegaDotHist = unsteady_outputs[0]
+        gbHist = unsteady_outputs[0]
+        gbDotHist = unsteady_outputs[0]
+        gbDotDotHist = unsteady_outputs[0]
+        FReactionHist = unsteady_outputs[0]
+        FTwrBsHist = unsteady_outputs[0]
+        genTorque = unsteady_outputs[0]
+        genPower = unsteady_outputs[0]
+        torqueDriveShaft = unsteady_outputs[0]
+        uHist = unsteady_outputs[0]
+        uHist_prp = unsteady_outputs[0]
+        epsilon_x_hist = unsteady_outputs[0]
+        epsilon_y_hist = unsteady_outputs[0]
+        epsilon_z_hist = unsteady_outputs[0]
+        kappa_x_hist = unsteady_outputs[0]
+        kappa_y_hist = unsteady_outputs[0]
+        kappa_z_hist = unsteady_outputs[0]
+
+        # Extract ultimate failure
+        structural_failure_outputs = jl.OWENS.extractSF(bld_precompinput = bld_precompinput,
+                                                        bld_precompinput = bld_precompoutput,
+                                                        plyprops_bld = plyprops_bld,
+                                                        numadIn_bld = numadIn_bld,
+                                                        lam_U_bld = lam_U_bld,
+                                                        lam_L_bld = lam_L_bld,
+                                                        twr_precompinput = twr_precompinput,
+                                                        twr_precompoutput = twr_precompoutput,
+                                                        plyprops_twr = plyprops_twr,
+                                                        numadIn_twr = numadIn_twr,
+                                                        lam_U_twr = lam_U_twr,
+                                                        lam_L_twr = lam_L_twr,
+                                                        mymesh = mymesh,
+                                                        myel = myel,
+                                                        myort = myort,
+                                                        number_of_blades = number_of_blades,
+                                                        epsilon_x_hist = epsilon_x_hist,
+                                                        kappa_y_hist = kappa_y_hist,
+                                                        kappa_z_hist = kappa_z_hist,
+                                                        epsilon_z_hist = epsilon_z_hist,
+                                                        kappa_x_hist = kappa_x_hist,
+                                                        epsilon_y_hist = epsilon_y_hist,
+                                                        verbosity =2, #Verbosity 0:no printing, 1: summary, 2: summary and spanwise worst safety factor # epsilon_x_hist_1,kappa_y_hist_1,kappa_z_hist_1,epsilon_z_hist_1,kappa_x_hist_1,epsilon_y_hist_1,
+                                                        LE_U_idx=1,
+                                                        TE_U_idx=6,
+                                                        SparCapU_idx=3,
+                                                        ForePanelU_idx=2,
+                                                        AftPanelU_idx=5,
+                                                        LE_L_idx=1,
+                                                        TE_L_idx=6,
+                                                        SparCapL_idx=3,
+                                                        ForePanelL_idx=2,
+                                                        AftPanelL_idx=5,
+                                                        Twr_LE_U_idx=1,
+                                                        Twr_LE_L_idx=1,
+                                                        AD15bldNdIdxRng = AD15bldNdIdxRng,
+                                                        AD15bldElIdxRng = AD15bldElIdxRng,
+                                                        strut_precompoutput=None)
+        
+        # Parse structural failure outputs
+        massOwens = structural_failure_outputs[0]
+        stress_U = structural_failure_outputs[1]
+        SF_ult_U = structural_failure_outputs[2]
+        SF_buck_U = structural_failure_outputs[3]
+        stress_L = structural_failure_outputs[4]
+        SF_ult_L = structural_failure_outputs[5]
+        SF_buck_L = structural_failure_outputs[6]
+        stress_TU = structural_failure_outputs[7]
+        SF_ult_TU = structural_failure_outputs[8]
+        SF_buck_TU = structural_failure_outputs[9]
+        stress_TL = structural_failure_outputs[10]
+        SF_ult_TL = structural_failure_outputs[11]
+        SF_buck_TL = structural_failure_outputs[12]
+        topstrainout_blade_U = structural_failure_outputs[13]
+        topstrainout_blade_L = structural_failure_outputs[14]
+        topstrainout_tower_U = structural_failure_outputs[15]
+        topstrainout_tower_L = structural_failure_outputs[16]
+        topDamage_blade_U = structural_failure_outputs[17]
+        topDamage_blade_L = structural_failure_outputs[18]
+        topDamage_tower_U = structural_failure_outputs[19]
+        topDamage_tower_L = structural_failure_outputs[20]
 
         # Unpack outputs
         # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens"
-        outputs["tower_mass"] = results[0]
-        outputs["first_tower_mass"] = results[0][0]
-        outputs["GenPower"] = np.mean(results[1])
-        outputs["mass"] = results[2]
+        outputs["power"] = np.mean(-FReactionHist[:,6])*(RPM*2*np.pi/60)
+        outputs["lcoe"] = massOwens/outputs["power"]
+
+        # OWENS example uses ks aggregation
+        maxFatiguePer20yr = np.maximum(topDamage_blade_U/t[-1]*60*60*20*365*24)
+        minSF = np.minimum(SF_ult_U)
+
+        # Other outputs for constraints
+        outputs["SF"] = 1.0 - minSF
+        outputs["fatigue_damage"] = maxFatiguePer20yr - 1.0
+        # power constraint can be imposed elsewhere
+        # since it is already an output
 
 
 
