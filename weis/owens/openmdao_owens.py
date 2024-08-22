@@ -368,6 +368,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Reinitialize the model with the inputs from modeling options
         self.initialize_model()
 
+        number_of_grid_pts = modopt["number_of_grid_pts"]
+
         # Blade inputs, geometry and discretization
         self.add_input("Nbld", val=3, desc="number of blades")
         self.add_input("Blade_Radius", val=54.01123056)
@@ -381,7 +383,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_input("ntelem", val=10, desc="Tower elements in each")
         self.add_input("nbelem", val=60, desc="Blade elements in each")
         self.add_input("ncelem", val=10, desc="Central cable elements in each if turbine type is ARCUS")
-        self.add_input("nselem", val=60, desc="Blade elements in each")
+        self.add_input("nselem", val=5, desc="strut elements in each if turbineType has struts")
 
 
         # Solver options (come from modeling options)
@@ -401,7 +403,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # operation parameters
         self.add_input("rho", val=1.225, units="kg", desc="Fluid dendity")
-        self.add_input("mu", val=0.0, units='kg/(m*s)', desc="Fluid dynamic viscosity")
+        self.add_input("mu", val=1.7894e-5, units='kg/(m*s)', desc="Fluid dynamic viscosity")
         self.add_input("Vinf", val=17.2, units="m/s", desc="Inflow velocity") # Same for Vinf, it is now a modeling option in owens example, keeping it as input for now, so that DLCs can be taken care internally
 
 
@@ -461,14 +463,15 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_output("lcoe", units="USD/MW/h", val=0.0, desc="Pseudo levelized cost of energy")
         self.add_output("SF", val=0.0, desc="Safety factor constraint")
         self.add_output("fatigue_damage", val=0.0, desc="20 year fatigue damage")
+        self.add_output("mass", units="kg", val=0.0)
 
         # discretization
         # The control point setup should be part of the optimization setup
         # Here should just take in the x_values
         # n_control_pts = len()
-        self.add_input("blade_x", units="m")
-        self.add_input("blade_y", units="m")
-        self.add_input("blade_z", units="m")
+        self.add_input("blade_x", units="m", val=np.zeros(number_of_grid_pts))
+        self.add_input("blade_y", units="m", val=np.zeros(number_of_grid_pts))
+        self.add_input("blade_z", units="m", val=np.zeros(number_of_grid_pts))
 
     def initialize_model(self):
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
@@ -524,8 +527,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         modopt = self.options["modeling_options"]
 
         path = self.run_path
-        eta = modopt["eta"][0]
-        number_of_blades = inputs["Nbld"]
+        eta = modopt["eta"]
+        number_of_blades = int(inputs["Nbld"][0])
         Blade_Radius = inputs["Blade_Radius"][0]
         Blade_Height = inputs["Blade_Height"][0]
         towerHeight = inputs["towerHeight"][0]
@@ -567,10 +570,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
                                             Vinf=Vinf,
                                             eta=eta,
                                             B = number_of_blades,
-                                            H = np.maximum(blade_z),
-                                            R = np.maximum(blade_x),
+                                            H = np.max(blade_z),
+                                            R = np.max(blade_x),
                                             shapeZ=blade_z,
-                                            shapeY=blade_y,
                                             shapeX=blade_x,
                                             ifw=self.Turbulence["ifw"],
                                             WindType=self.Turbulence["WindType"],
@@ -613,6 +615,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         stiff_twr = setup_outputs[7]
         stiff_bld = setup_outputs[8]
         bld_precompinput = setup_outputs[9]
+        # print("blade_precompinput omdao: ", bld_precompinput)
         bld_precompoutput = setup_outputs[10]
         plyprops_bld = setup_outputs[11]
         numadIn_bld = setup_outputs[12]
@@ -650,7 +653,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         
         structural_model_inputs = jl.OWENS.Inputs(analysisType = self.structuralModel,
-                                 tocp = [0.0, 100000.1],
+                                 tocp = np.array([0.0, 100000.1]),
                                  Omegaocp = np.array([RPM, RPM])/60,
                                  tocp_Vinf = np.array([0.0, 100000.1]),
                                  Vinfocp = np.array([Vinf, Vinf]),
@@ -667,13 +670,12 @@ class OWENSUnsteadySetup(ExplicitComponent):
                                 pBC=pBC,
                                 nlOn=True,
                                 numNodes = mymesh.numNodes,
-                                numModes = 200,
                                 RayleighAlpha = 0.05,
                                 RayleighBeta = 0.05,
                                 iterationType = "DI")
         
         
-        unsteady_outputs = jl.OWENS.Unsteady_Land(inputs=structural_model_inputs,
+        unsteady_outputs = jl.OWENS.Unsteady_Land(structural_model_inputs,
                                                   system = system,
                                                   assembly = assembly,
                                                   topModel = feamodel,
@@ -685,49 +687,49 @@ class OWENSUnsteadySetup(ExplicitComponent):
         
         # Parse unsteady run output
         t = unsteady_outputs[0]
-        aziHist = unsteady_outputs[0]
-        OmegaHist = unsteady_outputs[0]
-        OmegaDotHist = unsteady_outputs[0]
-        gbHist = unsteady_outputs[0]
-        gbDotHist = unsteady_outputs[0]
-        gbDotDotHist = unsteady_outputs[0]
-        FReactionHist = unsteady_outputs[0]
-        FTwrBsHist = unsteady_outputs[0]
-        genTorque = unsteady_outputs[0]
-        genPower = unsteady_outputs[0]
-        torqueDriveShaft = unsteady_outputs[0]
-        uHist = unsteady_outputs[0]
-        uHist_prp = unsteady_outputs[0]
-        epsilon_x_hist = unsteady_outputs[0]
-        epsilon_y_hist = unsteady_outputs[0]
-        epsilon_z_hist = unsteady_outputs[0]
-        kappa_x_hist = unsteady_outputs[0]
-        kappa_y_hist = unsteady_outputs[0]
-        kappa_z_hist = unsteady_outputs[0]
+        aziHist = unsteady_outputs[1]
+        OmegaHist = unsteady_outputs[2]
+        OmegaDotHist = unsteady_outputs[3]
+        gbHist = unsteady_outputs[4]
+        gbDotHist = unsteady_outputs[5]
+        gbDotDotHist = unsteady_outputs[6]
+        FReactionHist = unsteady_outputs[7]
+        FTwrBsHist = unsteady_outputs[8]
+        genTorque = unsteady_outputs[9]
+        genPower = unsteady_outputs[10]
+        torqueDriveShaft = unsteady_outputs[11]
+        uHist = unsteady_outputs[12]
+        uHist_prp = unsteady_outputs[13]
+        epsilon_x_hist = unsteady_outputs[14]
+        epsilon_y_hist = unsteady_outputs[15]
+        epsilon_z_hist = unsteady_outputs[16]
+        kappa_x_hist = unsteady_outputs[17]
+        kappa_y_hist = unsteady_outputs[18]
+        kappa_z_hist = unsteady_outputs[19]
 
         # Extract ultimate failure
-        structural_failure_outputs = jl.OWENS.extractSF(bld_precompinput = bld_precompinput,
-                                                        bld_precompinput = bld_precompoutput,
-                                                        plyprops_bld = plyprops_bld,
-                                                        numadIn_bld = numadIn_bld,
-                                                        lam_U_bld = lam_U_bld,
-                                                        lam_L_bld = lam_L_bld,
-                                                        twr_precompinput = twr_precompinput,
-                                                        twr_precompoutput = twr_precompoutput,
-                                                        plyprops_twr = plyprops_twr,
-                                                        numadIn_twr = numadIn_twr,
-                                                        lam_U_twr = lam_U_twr,
-                                                        lam_L_twr = lam_L_twr,
-                                                        mymesh = mymesh,
-                                                        myel = myel,
-                                                        myort = myort,
-                                                        number_of_blades = number_of_blades,
-                                                        epsilon_x_hist = epsilon_x_hist,
-                                                        kappa_y_hist = kappa_y_hist,
-                                                        kappa_z_hist = kappa_z_hist,
-                                                        epsilon_z_hist = epsilon_z_hist,
-                                                        kappa_x_hist = kappa_x_hist,
-                                                        epsilon_y_hist = epsilon_y_hist,
+        structural_failure_outputs = jl.OWENS.extractSF(bld_precompinput,
+                                                        bld_precompoutput,
+                                                        plyprops_bld,
+                                                        numadIn_bld,
+                                                        lam_U_bld,
+                                                        lam_L_bld,
+                                                        twr_precompinput,
+                                                        twr_precompoutput,
+                                                        plyprops_twr,
+                                                        numadIn_twr,
+                                                        lam_U_twr,
+                                                        lam_L_twr,
+                                                        mymesh,
+                                                        myel,
+                                                        myort,
+                                                        number_of_blades,
+                                                        epsilon_x_hist,
+                                                        kappa_y_hist,
+                                                        kappa_z_hist,
+                                                        epsilon_z_hist,
+                                                        kappa_x_hist,
+                                                        epsilon_y_hist,
                                                         verbosity =2, #Verbosity 0:no printing, 1: summary, 2: summary and spanwise worst safety factor # epsilon_x_hist_1,kappa_y_hist_1,kappa_z_hist_1,epsilon_z_hist_1,kappa_x_hist_1,epsilon_y_hist_1,
                                                         LE_U_idx=1,
                                                         TE_U_idx=6,
@@ -763,23 +765,26 @@ class OWENSUnsteadySetup(ExplicitComponent):
         topstrainout_blade_L = structural_failure_outputs[14]
         topstrainout_tower_U = structural_failure_outputs[15]
         topstrainout_tower_L = structural_failure_outputs[16]
-        topDamage_blade_U = structural_failure_outputs[17]
+        topDamage_blade_U = np.asarray(structural_failure_outputs[17])
         topDamage_blade_L = structural_failure_outputs[18]
         topDamage_tower_U = structural_failure_outputs[19]
         topDamage_tower_L = structural_failure_outputs[20]
 
         # Unpack outputs
         # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens"
-        outputs["power"] = np.mean(-FReactionHist[:,6])*(RPM*2*np.pi/60)
+        # print("-FReactionHist[:,5]: ", -FReactionHist[:,5])
+        outputs["mass"] = massOwens
+        outputs["power"] = np.mean(-FReactionHist[:,5])*(RPM*2*np.pi/60)
         outputs["lcoe"] = massOwens/outputs["power"]
 
         # OWENS example uses ks aggregation
-        maxFatiguePer20yr = np.maximum(topDamage_blade_U/t[-1]*60*60*20*365*24)
-        minSF = np.minimum(SF_ult_U)
+        maxFatiguePer20yr = np.max(topDamage_blade_U/t[-1]*60*60*20*365*24)
+        minSF = np.min(SF_ult_U)
 
         # Other outputs for constraints
-        outputs["SF"] = 1.0 - minSF
-        outputs["fatigue_damage"] = maxFatiguePer20yr - 1.0
+        outputs["SF"] = minSF
+        outputs["fatigue_damage"] = maxFatiguePer20yr # - 1.0
+        print("fatigue damage: ", outputs["fatigue_damage"])
         # power constraint can be imposed elsewhere
         # since it is already an output
 

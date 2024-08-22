@@ -80,6 +80,23 @@ properties:
                 type: boolean
                 default: False
                 description: Flag whether to apply the Goodman correction for mean stress value to the stress amplitude value in fatigue calculations
+            owens_configuration:
+                type: object
+                default: {}
+                properties:
+                    owens_path:
+                        type: string
+                        default: none
+                        desciption: Path to owens project
+                    master_input:
+                        type: string
+                        default: none
+                        description: Path to the sample yaml file for initialization
+                    adi_lib:
+                        type: string
+                        default: none
+                        description: Path to the aerodyn interface library, "nothing" if you are using the one that is automatically built with OWENSOpenFASTWrappers.jl
+
     WISDEM:
         type: object
         default: {}
@@ -2797,6 +2814,75 @@ properties:
                         maximum: 100000.0
                         unit: s
                         description: Time to begin tabular output (s) (currently unused)
+    OWENS:
+        type: object
+        default: {}
+        properties:
+            flag:
+                type: boolean
+                default: False
+            analysisType:
+                type: string
+                default: unsteady # unsteady, steady, modal
+            turbineType:
+                type: string
+                default: Darrieus #Darrieus, H-VAWT, ARCUS
+            controlStrategy:
+                type: string
+                default: constantRPM
+                description: currently constant RPM (in work is to expose the scripting options of the discon and custom control options at the super simple file level)
+            RPM:
+                type: number
+                default: 0
+                description: Rotational rate if constant RPM control, is also the initialized RPM
+            numTS:
+                type: int
+                default: 1
+                description: Total number of time steps
+            delta_t:
+                type: number
+                default: 0.01
+                description: Time step, in seconds
+            Nslices:
+                type: int
+                default: 1
+                descrption: Number of vertical slices in the strip theory to get the simplified aero model to be 3D
+            ntheta:
+                type: int
+                default: 1
+                description: Number of azimuthal discretizations of the simplified aero model, if active, must by wholly divisible by NBlades
+            AModel:
+                type: string
+                default: DMS
+                description: Aero model, "AC" actuator cylinder (slower but slightly more accurate with array capability at the planar aero only level) "DMS" (faster and nearly as accurate) or "AD" (aerodyn interface, specifically OLAF, which is a relatively slow but higher fidelity vortex line wake model.  This includes strut drag and tip losses.)
+            structuralModel:
+                type: string
+                default: GX
+                description: TNB time newmark beta time stepping linear or nonlinear, ROM reduced order modal linear or nonlinear, GX geometrically exact beam theory 
+            structural_nonlinear:
+                type: boolean
+                default: false
+                description: Flag for nonlinear structural analysis
+            ntelem:
+                type: int
+                default: 1
+                description: Number of tower elements, in the automatically generated mesh
+            nbelem:
+                type: int
+                default: 1
+                description: Number of blade elements, in the automatically generated mesh
+            ncelem:
+                type: int
+                default: 1
+                description: Number of cable elements, in the automatically generated mesh
+            nselem:
+                type: int
+                default: 1
+                description: Number of strut elements, in the automatically generated mesh
+            HydroDyn: *ofhydrodyn
+            MoorDyn: *ofmoordyn
+
+
             outlist: &ofoutlist
                 type: object
                 default: {}
@@ -2853,6 +2939,7 @@ properties:
                         type: boolean
                         default: False
                         description: Whether or not to run xfoil in parallel (requires mpi setup)
+            HydroDyn: *hy
     Level2:
         type: object
         default: {}
@@ -3054,6 +3141,14 @@ properties:
                                 minimum: 0.0
                                 maximum: 200.0
                                 uniqueItems: true
+                        inflowWind:
+                            type: boolean
+                            default: false
+                            descrption: Flag to the AC or DMS models to use constant inflow or to read the specified windINPfilename
+                        WindType:
+                            type: int
+                            default: 1
+                            description: Inflow wind wind type (1 2 3), this is automatically handled by the DLC processor when it is used
                         ws_bin_size:
                             type: number
                             default: 2

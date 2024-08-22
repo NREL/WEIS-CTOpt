@@ -179,28 +179,30 @@ class WindTurbineOntologyPythonWEIS(WindTurbineOntologyPython):
             raise Exception("A distributed aerodynamic control device is defined in the geometry yaml, but the path to XFoil in the modeling options is not defined correctly")
 
         # Compute the number of DLCs that will be run
-        DLCs = self.modeling_options['DLC_driver']['DLCs']
-        # Initialize the DLC generator
-        cut_in = self.wt_init['control']['supervisory']['Vin']
-        cut_out = self.wt_init['control']['supervisory']['Vout']
-        metocean = self.modeling_options['DLC_driver']['metocean_conditions']
-        dlc_generator = DLCGenerator(cut_in, cut_out, metocean=metocean)
-        # Generate cases from user inputs
-        for i_DLC in range(len(DLCs)):
-            DLCopt = DLCs[i_DLC]
-            dlc_generator.generate(DLCopt['DLC'], DLCopt)
-        self.modeling_options['DLC_driver']['n_cases'] = dlc_generator.n_cases
-        if hasattr(dlc_generator,'n_ws_dlc11'):
-            self.modeling_options['DLC_driver']['n_ws_dlc11'] = dlc_generator.n_ws_dlc11
-        else:
-            self.modeling_options['DLC_driver']['n_ws_dlc11'] = 0
-
-        self.modeling_options['flags']['TMDs'] = False
-        if 'TMDs' in self.wt_init:
-            if self.modeling_options['Level3']['flag']:
-                self.modeling_options['flags']['TMDs'] = True
+        if not self.modeling_options["OWENS"]["flag"]:
+            # TODO-YL: figure out how to handle owens DLCs later
+            DLCs = self.modeling_options['DLC_driver']['DLCs']
+            # Initialize the DLC generator
+            cut_in = self.wt_init['control']['supervisory']['Vin']
+            cut_out = self.wt_init['control']['supervisory']['Vout']
+            metocean = self.modeling_options['DLC_driver']['metocean_conditions']
+            dlc_generator = DLCGenerator(cut_in, cut_out, metocean=metocean)
+            # Generate cases from user inputs
+            for i_DLC in range(len(DLCs)):
+                DLCopt = DLCs[i_DLC]
+                dlc_generator.generate(DLCopt['DLC'], DLCopt)
+            self.modeling_options['DLC_driver']['n_cases'] = dlc_generator.n_cases
+            if hasattr(dlc_generator,'n_ws_dlc11'):
+                self.modeling_options['DLC_driver']['n_ws_dlc11'] = dlc_generator.n_ws_dlc11
             else:
-                raise Exception("TMDs in Levels 1 and 2 are not supported yet")
+                self.modeling_options['DLC_driver']['n_ws_dlc11'] = 0
+
+            self.modeling_options['flags']['TMDs'] = False
+            if 'TMDs' in self.wt_init:
+                if self.modeling_options['Level3']['flag']:
+                    self.modeling_options['flags']['TMDs'] = True
+                else:
+                    raise Exception("TMDs in Levels 1 and 2 are not supported yet")
 
 
     def set_openmdao_vectors_control(self):

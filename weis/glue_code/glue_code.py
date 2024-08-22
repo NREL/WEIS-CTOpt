@@ -13,6 +13,7 @@ from wisdem.commonse.cylinder_member import CylinderPostFrame
 from wisdem.plant_financese.plant_finance import PlantFinance
 from wisdem.commonse.turbine_constraints  import TurbineConstraints
 from weis.aeroelasticse.openmdao_openfast import FASTLoadCases
+from weis.owens.openmdao_owens_integration import OWENSUnsteadySetup
 from weis.control.dac import RunXFOIL
 from wisdem.rotorse.rotor_power import NoStallConstraint
 from weis.control.tune_rosco import ServoSE_ROSCO, ROSCO_Turbine
@@ -950,3 +951,6 @@ class WindPark(om.Group):
                 self.connect('dac_ivc.te_flap_end',            'outputs_2_screen_weis.te_flap_end')
                 if modeling_options['OL2CL']['flag']:
                     self.connect('aeroelastic.OL2CL_pitch',      'outputs_2_screen_weis.OL2CL_pitch')
+        
+        if modeling_options['OWENS']['flag']:
+            self.add_subsystem('owens',       OWENSUnsteadySetup(modeling_options = modeling_options, opt_options = opt_options))
