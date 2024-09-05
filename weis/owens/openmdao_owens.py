@@ -473,6 +473,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_input("blade_y", units="m", val=np.zeros(number_of_grid_pts))
         self.add_input("blade_z", units="m", val=np.zeros(number_of_grid_pts))
 
+        # scaling variables
+        self.add_input("chord_scale", val=np.ones(2))
+        self.add_input("chord_scale", val=np.ones(2))
+
     def initialize_model(self):
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
         # and then update the model options
@@ -538,6 +542,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         blade_y = inputs["blade_y"]
         blade_z = inputs["blade_z"]
 
+        # scaling input
+        chord_scale = inputs["chord_scale"]
+
         rho = inputs["rho"][0]
         Vinf = inputs["Vinf"][0]
 
@@ -589,6 +596,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
                                             NuMad_mat_xlscsv_file_bld=self.NumadSpec["NuMad_mat_xlscsv_file_bld"],
                                             NuMad_geom_xlscsv_file_strut=self.NumadSpec["NuMad_geom_xlscsv_file_strut"],
                                             NuMad_mat_xlscsv_file_strut=self.NumadSpec["NuMad_mat_xlscsv_file_strut"],
+                                            chord_scale = chord_scale,
                                             ntelem=ntelem,
                                             nbelem=nbelem,
                                             ncelem=ncelem,
@@ -784,7 +792,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Other outputs for constraints
         outputs["SF"] = minSF
         outputs["fatigue_damage"] = maxFatiguePer20yr # - 1.0
-        print("fatigue damage: ", outputs["fatigue_damage"])
+        # print("fatigue damage: ", outputs["fatigue_damage"])
         # power constraint can be imposed elsewhere
         # since it is already an output
 
