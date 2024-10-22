@@ -12,6 +12,7 @@ import pandas as pd
 from scipy.interpolate import PchipInterpolator, Akima1DInterpolator
 import openmdao.api as om
 from openmdao.api                           import ExplicitComponent
+from wisdem.commonse.utilities import arc_length
 # from wisdem.commonse.mpi_tools              import MPI
 # from wisdem.commonse import NFREQ
 # from wisdem.commonse.cylinder_member import get_nfull
@@ -42,307 +43,53 @@ from openmdao.api                           import ExplicitComponent
 # Juliacall for OWENS
 from juliacall import Main as jl
 from juliacall import Pkg as jlPkg
-from OWENS_output_reader import *
+# from OWENS_output_reader import *
+from collections import OrderedDict
 
 # if MPI:
 #     from mpi4py   import MPI
-
-
-class OWENS_WEIS(om.Group):
-    # TODO: This was intended to do common setup
-
-    def intialize(self):
-        self.options.declare("modeling_options")
-        self.options.declare("analysis_options")
-
-    def setup(self):
-        modeling_opt = self.options["modeling_options"]
-        analysis_opt = self.options["analysis_options"]
-
-        level = modeling_opt['Level']
-
-
-class OWENSStructSetup(ExplicitComponent):
-    def initialize(self):
-        self.options.declare("modeling_options")
-
-    def setup(self):
-        modopt = self.options['modeling_options']
-        OWENS_directory = modopt["OWENS_directory"]
-
-        jlPkg.activate(OWENS_directory)
-        jl.seval("using OWENS")
-        jl.seval("using OWENSAero")
-
-        master_file = modopt["master_input"]
-
-        # Initialize an OWENS model
-        self.model = jl.OWENS.MasterInput(master_file)
-
-        self.analysis_type = modopt["analysis_type"]
-        self.turbine_type = modopt["turbine_type"]
-        self.control_strategy = modopt["control_strategy"]
-        self.aeroModel = modopt["aeroModel"]
-        self.adi_lib = modopt["adi_lib"]
-        self.adi_rootname = modopt["adi_rootname"]
-        self.NumadSpec = modopt["NumadSpec"] # All files go here
-        self.Turbulence = modopt["TurbulenceSpec"] # All files go here
-        self.n_blades = modopt["number_of_blades"]
-        self.structuralModel = modopt["structuralModel"]
-        self.structuralNonlinear = modopt["structuralNonlinear"]
-        self.run_path = modopt["run_path"] # What exactly is this path?
-
-        # Reinitialize the model with the inputs from modeling options
-        self.initialize_model()
-        # Blade inputs, geometry and discretization
-        self.add_input("eta", val=0.5, desc="blade mount point ratio, 0.5 is the blade half chord is perpendicular with the axis of rotation, 0.25 is the quarter chord, etc")
-        self.add_input("Nbld", val=2, desc="number of blades")
-        self.add_input("Blade_Radius", val=17.1)
-        self.add_input("Blade_Height", val=41.9)
-        self.add_input("towerHeight", val=0.5)
-
-
-        # Blade inputs for composites
-        # self.add_input('structuralModel', val='GX', desc="Structural models, GX, TNB, or ROM")
-        # self.add_input('nonlinear', val=False, desc="[]")
-        self.add_input("ntelem", val=10, desc="Tower elements in each")
-        self.add_input("nbelem", val=60, desc="Blade elements in each")
-        self.add_input("ncelem", val=10, desc="Central cable elements in each if turbine type is ARCUS")
-        self.add_input("nselem", val=5, desc="Blade elements in each")
-
-
-        # Solver options (come from modeling options)
-        
-        # Control inputs
-        self.add_input("RPM", val=34.0, desc="RPM")
-        self.add_input("numTS", val=6)
-        self.add_input("delta_t", val=0.05, units="s")
-
-        # Aero parameters
-        self.add_input("NSlices", val=35, desc="number of VAWTAero discritizations #TODO: AD parameters")
-        self.add_input("ntheta", val=30, desc="number of VAWTAero azimuthal discretizations")
-
-        # Environmental conditions
-        # Maybe this fits better into load cases?
-
-        # operation parameters
-        self.add_input("rho", val=0.94, units="kg/m**3", desc="Fluid dendity")
-        self.add_input("Vinf", val=10.1, units="m/s", desc="Inflow velocity")
-
-        # external force
-        self.add_input("Fexternal", val=np.array([1000.0, 0.0, 1000.0]), units="N", desc="External forces")
-
-
-        self.add_output("blade_mass", units="kg", val=0.0, desc="Blade mass breakdown")
-        self.add_output("displacement", units="m", val=0.0)
-
-        # discretization
-        # Maybe these controlpts are grid?
-        # n_control_pts = len()
-        self.add_input("controlpts", val=np.array([3.6479257474344826, 6.226656883619295, 9.082267631309085, 11.449336766507562, 13.310226748873827, 14.781369210504563, 15.8101544043681, 16.566733104331984, 17.011239869982738, 17.167841319391137, 17.04306679619916, 16.631562597633675, 15.923729603782338, 14.932185789551408, 13.62712239754136, 12.075292152969496, 10.252043906945818, 8.124505683235517, 5.678738418596312, 2.8959968657512207]), units=None)
-
-    def initialize_model(self):
-        self.model.analysisType = self.analysis_type
-        self.model.turbineType = self.turbine_type
-        self.model.controlStrategy = self.control_strategy
-        self.model.AModel = self.aeroModel
-        self.model.adi_lib = self.adi_lib
-        self.model.adi_rootname = self.adi_rootname
-        self.model.Nbld = int(self.n_blades)
-
-        # This live in initialize model
-        # TODO: If at any point we want to change the material parameters, we need to take this out to compute
-        self.model.NuMad_geom_xlscsv_file_twr = self.NumadSpec["NuMad_geom_xlscsv_file_twr"]
-        self.model.NuMad_mat_xlscsv_file_twr = self.NumadSpec["NuMad_mat_xlscsv_file_twr"]
-        self.model.NuMad_geom_xlscsv_file_bld = self.NumadSpec["NuMad_geom_xlscsv_file_bld"]
-        self.model.NuMad_mat_xlscsv_file_bld = self.NumadSpec["NuMad_mat_xlscsv_file_bld"]
-        self.model.NuMad_geom_xlscsv_file_strut = self.NumadSpec["NuMad_geom_xlscsv_file_strut"]
-        self.model.NuMad_mat_xlscsv_file_strut = self.NumadSpec["NuMad_mat_xlscsv_file_strut"]
-
-        # Initialize turbulenece
-        self.model.ifw = self.Turbulence["ifw"]
-        self.model.WindType = self.Turbulence["WindType"]
-        self.model.windINPfilename = self.Turbulence["windINPfilename"]
-        self.model.ifw_libfile = self.Turbulence["ifw_libfile"]
-
-        # initialize structural model
-        self.model.structuralModel = self.structuralModel
-        # self.model.nonlinear = self.structuralNonlinear
-
-    def setup_partials(self):
-        self.declare_partials("blade_mass", ["Blade_Radius", "Blade_Height"], method="fd")
-
-    def compute(self, inputs, outputs):
-        path = self.run_path
-        rho = inputs["rho"][0]
-        RPM = inputs["RPM"][0]
-        Vinf = inputs["Vinf"][0]
-        eta = inputs["eta"][0]
-        B = int(inputs["Nbld"][0])
-        H = inputs["Blade_Height"][0]
-        R = inputs["Blade_Radius"][0]
-        Ht = inputs["towerHeight"][0]
-
-        # z_shape1 = collect(LinRange(0,41.9,length(controlpts)+2))
-        # x_shape1 = [0.0;controlpts;0.0]
-        # z_shape = collect(LinRange(0,41.9,60))
-        # x_shape = FLOWMath.akima(z_shape1,x_shape1,z_shape)#[0.0,1.7760245854312287, 5.597183088188207, 8.807794161662574, 11.329376903432605, 13.359580331518579, 14.833606099357858, 15.945156349709, 16.679839160110422, 17.06449826588358, 17.10416552269884, 16.760632435904647, 16.05982913536134, 15.02659565585254, 13.660910465851046, 11.913532434360155, 9.832615229216344, 7.421713825584581, 4.447602800040282, 0.0]
-        # toweroffset = 4.3953443986241725
-        # SNL34_unit_xz = [x_shape;;z_shape]
-        # SNL34x = SNL34_unit_xz[:,1]./maximum(SNL34_unit_xz[:,1])
-        # SNL34z = SNL34_unit_xz[:,2]./maximum(SNL34_unit_xz[:,2])
-        # SNL34Z = SNL34z.*Blade_Height #windio
-        # SNL34X = SNL34x.*Blade_Radius #windio
-        controlpts = inputs["controlpts"]
-        # These are initial grid
-        z_shape1 = np.linspace(0, 41.9, len(controlpts)+2)
-        x_shape1 = np.insert(controlpts,0,0)
-        x_shape1 = np.insert(x_shape1,-1,0)
-        # These are dicretization
-        z_shape = np.linspace(0, 41.9, 60)
-        x_shape = Akima1DInterpolator(z_shape1, x_shape1)(z_shape)
-        SNL34_unit_xz = np.vstack((x_shape, z_shape))
-        SNL34x = SNL34_unit_xz[0,:]/np.max(SNL34_unit_xz[0,:]) # indexing different
-        SNL34z = SNL34_unit_xz[1,:]/np.max(SNL34_unit_xz[1,:])
-        SNL34Z = SNL34z*H #windio
-        SNL34X = SNL34x*R #windio
-
-        shapeY = SNL34Z#collect(LinRange(0,H,Nslices+1))
-        shapeX = SNL34X#R.*(1.0.-4.0.*(shapeY/H.-.5).^2)#shapeX_spline(shapeY)
-
-        ifw = self.Turbulence["ifw"]
-        delta_t = inputs["delta_t"][0]
-        adi_lib = self.adi_lib
-        adi_rootname = self.adi_rootname
-        windINPfilename = self.Turbulence["windINPfilename"]
-        ifw_libfile = self.Turbulence["ifw_libfile"]
-
-        NuMad_geom_xlscsv_file_twr = self.NumadSpec["NuMad_geom_xlscsv_file_twr"]
-        NuMad_mat_xlscsv_file_twr = self.NumadSpec["NuMad_mat_xlscsv_file_twr"]
-        NuMad_geom_xlscsv_file_bld = self.NumadSpec["NuMad_geom_xlscsv_file_bld"]
-        NuMad_mat_xlscsv_file_bld = self.NumadSpec["NuMad_mat_xlscsv_file_bld"]
-        NuMad_geom_xlscsv_file_strut = self.NumadSpec["NuMad_geom_xlscsv_file_strut"]
-        NuMad_mat_xlscsv_file_strut = self.NumadSpec["NuMad_mat_xlscsv_file_strut"]
-
-        numTS = int(inputs["numTS"][0])
-
-        Nslices = int(inputs["NSlices"][0])
-        ntheta = int(inputs["ntheta"][0])
-
-        ntelem = int(inputs["ntelem"][0])
-        nbelem = int(inputs["nbelem"][0])
-        ncelem = int(inputs["ncelem"][0])
-        nselem = int(inputs["nselem"][0])
-
-        AModel = self.aeroModel
-        mesh_type = self.turbine_type
-        setup_outputs = jl.OWENS.setupOWENS(jl.OWENSAero, path, 
-                                            rho=rho,
-                                            Nslices=Nslices,
-                                            ntheta=ntheta,
-                                            RPM=RPM,
-                                            Vinf=Vinf,
-                                            eta=eta,
-                                            B = B,
-                                            H = H,
-                                            R = R,
-                                            shapeY=shapeY,
-                                            shapeX=shapeX,
-                                            ifw=ifw,
-                                            delta_t=delta_t,
-                                            numTS=numTS,
-                                            adi_lib=adi_lib,
-                                            adi_rootname=adi_rootname,
-                                            AD15hubR = 0,
-                                            windINPfilename=windINPfilename,
-                                            ifw_libfile=ifw_libfile,
-                                            NuMad_geom_xlscsv_file_twr=NuMad_geom_xlscsv_file_twr,
-                                            NuMad_mat_xlscsv_file_twr=NuMad_mat_xlscsv_file_twr,
-                                            NuMad_geom_xlscsv_file_bld=NuMad_geom_xlscsv_file_bld,
-                                            NuMad_mat_xlscsv_file_bld=NuMad_mat_xlscsv_file_bld,
-                                            NuMad_geom_xlscsv_file_strut=NuMad_geom_xlscsv_file_strut,
-                                            NuMad_mat_xlscsv_file_strut=NuMad_mat_xlscsv_file_strut,
-                                            Ht=Ht,
-                                            ntelem=ntelem,
-                                            nbelem=nbelem,
-                                            ncelem=ncelem,
-                                            nselem=nselem,
-                                            joint_type = 0,
-                                            strut_mountpointbot = 0.03,
-                                            strut_mountpointtop = 0.03,
-                                            AModel=AModel, #AD, DMS, AC
-                                            DSModel="BV",
-                                            RPI=True,
-                                            cables_connected_to_blade_base = True,
-                                            angularOffset = np.pi/2,
-                                            meshtype = mesh_type
-                                            )
-        
-        top_idx = 23
-        pBC = np.array([[1, 1, 0],
-        [1, 2, 0],
-        [1, 3, 0],
-        [1, 4, 0],
-        [1, 5, 0],
-        [1, 6, 0],
-        [top_idx, 1, 0],
-        [top_idx, 2, 0],
-        [top_idx, 3, 0],
-        [top_idx, 4, 0],
-        [top_idx, 5, 0]])
-
-        mymesh = setup_outputs[0]
-        
-        feamodel = jl.OWENS.FEAModel(analysisType = self.structuralModel,
-                                joint = setup_outputs[3],
-                                platformTurbineConnectionNodeNumber = 1,
-                                pBC=pBC,
-                                nlOn=False,
-                                numNodes = mymesh.numNodes,
-                                numModes = 200,
-                                RayleighAlpha = 0.05,
-                                RayleighBeta = 0.05,
-                                iterationType = "DI")
-        
-        feamodel.analysisType = "S"
-        Fdof = np.array([15,16,17])
-        Fexternal = inputs["Fexternal"]
-
-        Omega = RPM*np.pi/30
-
-        myel = setup_outputs[1]
-
-        displ = np.zeros(mymesh.numNodes*6)
-        elStorage = jl.OWENS.OWENSFEA.initialElementCalculations(feamodel,myel,mymesh)
-        staticAnalysis_outputs = jl.OWENS.OWENSFEA.staticAnalysis(feamodel,mymesh,myel,displ,Omega,0.0,elStorage,reactionNodeNumber=1,Fdof=Fdof,Fexternal=Fexternal)
-        
-        blade_mass = setup_outputs[6]
-        displ = staticAnalysis_outputs[0][-1]
-
-        outputs["blade_mass"] = np.sum(blade_mass)[0,0]
-        outputs["displacement"] = displ
 
         
 class OWENSUnsteadySetup(ExplicitComponent):
     def initialize(self):
         self.options.declare("modeling_options")
-        # self.options.declare("opt_options")
+        self.options.declare("rotorse_options")
+        self.options.declare("towerse_options")
+        self.options.declare("strut_options")
+        self.options.declare("opt_options")
         # TODO: we can add an option here to output the intermediate yaml file, like
         # self.options.declare("owens_yaml")
 
     def setup(self):
         modopt = self.options['modeling_options']
-        OWENS_directory = modopt["OWENS_directory"]
+        rotorse_options = self.options["rotorse_options"]
+        towerse_options = self.options["towerse_options"]
+        strut_options = self.options["strut_options"]
+        OWENS_path = modopt["OWENS"]["OWENS_project_path"]
 
 
-        jlPkg.activate(OWENS_directory)
+        jlPkg.activate(OWENS_path)
         jl.seval("using OWENS")
         jl.seval("using OWENSAero")
 
-        master_file = modopt["master_input"]
+        master_file = modopt["OWENS"]["master_input"]
 
         # Initialize an OWENS model
         self.model = jl.OWENS.MasterInput(master_file)
+
+        self.n_span = rotorse_options["n_span"]
+        self.n_layers = rotorse_options["n_layers"]
+        self.n_webs = rotorse_options["n_webs"]
+
+        # Tower options
+        n_height_tower = towerse_options["n_height"]
+        n_layers_tower = towerse_options["n_layers"]
+        n_mat = modopt["materials"]["n_mat"]
+
+        # Strut options
+        n_span_strut = strut_options["n_af_span"]
+        n_layers_strut = strut_options["n_layers"]
+        n_webs_strut = strut_options["n_webs"]
 
 
         # analysisType: unsteady # unsteady, steady, modal
@@ -351,24 +98,28 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Currently, they are just normal openmdao component options,
         # Not considering any WEIS data/input structure
         # Probably needs to be like modopt["crossflow"]["analysis_type"]
-        self.analysis_type = modopt["analysis_type"]
-        self.turbine_type = modopt["turbine_type"]
-        self.eta = modopt["eta"] # Now eta is a modeling option
-        self.control_strategy = modopt["control_strategy"]
-        self.aeroModel = modopt["aeroModel"]
-        self.adi_lib = modopt["adi_lib"]
-        self.adi_rootname = modopt["adi_rootname"]
-        self.NumadSpec = modopt["NumadSpec"] # All files go here
-        self.Turbulence = modopt["TurbulenceSpec"] # All files go here
-        self.n_blades = modopt["number_of_blades"]
-        self.structuralModel = modopt["structuralModel"]
-        self.structuralNonlinear = modopt["structuralNonlinear"]
-        self.run_path = modopt["run_path"] # What exactly is this path?
+        self.analysis_type = modopt["OWENS"]["analysisType"]
+        self.turbine_type = modopt["OWENS"]["turbineType"]
+        self.eta = modopt["OWENS"]["eta"] # Now eta is a modeling option
+        self.control_strategy = modopt["OWENS"]["controlStrategy"]
+        self.aeroModel = modopt["OWENS"]["AModel"]
+        self.adi_lib = modopt["OWENS"]["adi_lib"]
+        self.adi_rootname = modopt["OWENS"]["adi_rootname"]
+        # self.NumadSpec = modopt["OWENS"]["NumadSpec"] # All files go here
+        # self.Turbulence = modopt["OWENS"]["TurbulenceSpec"] # All files go here
+        self.ifw = modopt["OWENS"]["ifw"]
+        self.windType = modopt["OWENS"]["windType"]
+        self.windINPfilename = modopt["OWENS"]["windINPfilename"]
+        self.ifw_libfiles = modopt["OWENS"]["ifw_libfiles"]
+        self.n_blades = modopt["assembly"]["number_of_blades"]
+        self.structuralModel = modopt["OWENS"]["structuralModel"]
+        self.structuralNonlinear = modopt["OWENS"]["structuralNonlinear"]
+        self.run_path = modopt["OWENS"]["run_path"] # What exactly is this path?
 
         # Reinitialize the model with the inputs from modeling options
         self.initialize_model()
 
-        number_of_grid_pts = modopt["number_of_grid_pts"]
+        # number_of_grid_pts = modopt["number_of_grid_pts"]
 
         # Blade inputs, geometry and discretization
         self.add_input("Nbld", val=3, desc="number of blades")
@@ -380,10 +131,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Blade inputs for composites
         # self.add_input('structuralModel', val='GX', desc="Structural models, GX, TNB, or ROM")
         # self.add_input('nonlinear', val=False, desc="[]")
-        self.add_input("ntelem", val=10, desc="Tower elements in each")
-        self.add_input("nbelem", val=60, desc="Blade elements in each")
-        self.add_input("ncelem", val=10, desc="Central cable elements in each if turbine type is ARCUS")
-        self.add_input("nselem", val=5, desc="strut elements in each if turbineType has struts")
 
 
         # Solver options (come from modeling options)
@@ -395,7 +142,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
             self.add_input("delta_t", val=0.01, units="s")
 
         # Aero parameters
-        self.add_input("NSlices", val=30, desc="number of VAWTAero discritizations #TODO: AD parameters")
+        self.add_input("NSlices", val=30, desc="number of VAWTAero discritizations")
         self.add_input("ntheta", val=30, desc="number of VAWTAero azimuthal discretizations")
 
         # Environmental conditions
@@ -404,7 +151,77 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # operation parameters
         self.add_input("rho", val=1.225, units="kg", desc="Fluid dendity")
         self.add_input("mu", val=1.7894e-5, units='kg/(m*s)', desc="Fluid dynamic viscosity")
-        self.add_input("Vinf", val=17.2, units="m/s", desc="Inflow velocity") # Same for Vinf, it is now a modeling option in owens example, keeping it as input for now, so that DLCs can be taken care internally
+        self.add_input("Vinf", val=17.2, units="m/s", desc="Inflow velocity") # Same for Vinf, it is now a modeling option in owens example, keeping it as input for now, so that DLCs can be taken care internally. currently connect to V_mean in geometry schema 
+
+        # Blade outer_shape inputs
+        self.add_input("airfoil_grid", val=np.linspace(0,1,self.n_span))
+        self.add_discrete_input("airfoil_labels", val=self.n_span * [""], desc="1D array of names of airfoil shape labels.")
+        self.add_input("chord_grid", val=np.linspace(0,1,self.n_span))
+        self.add_input("chord_values", val=np.ones(self.n_span))
+        self.add_input("twist_grid", val=np.linspace(0,1,self.n_span))
+        self.add_input("twist_values", val=np.zeros(self.n_span))
+        self.add_input("pitch_axis_grid", val=np.linspace(0,1,self.n_span))
+        self.add_input("pitch_axis_values", val=np.zeros(self.n_span))
+
+        # Blade structure inputs
+        self.add_input("structure_grid", val=np.linspace(0,1,self.n_span))
+        self.add_input("structure_ref_axis", val=np.zeros((self.n_span, 3)))
+
+        self.add_input("web_start_nd_arc", val=np.zeros((self.n_webs, self.n_span)))
+        self.add_input("web_end_nd_arc", val=np.zeros((self.n_webs, self.n_span)))
+
+        self.add_discrete_input("layer_material", val="")
+        self.add_input("layer_thickness", val=np.zeros((self.n_layers, self.n_span)))
+        self.add_input("layer_start_nd_arc", val=np.zeros((self.n_layers, self.n_span)))
+        self.add_input("layer_end_nd_arc", val=np.zeros((self.n_layers, self.n_span)))
+        self.add_input("layer_fiber_orientation", val=np.zeros((self.n_layers, self.n_span)))
+
+        # Tower inputs
+        self.add_input("tower_grid", val=np.linspace(0,1, n_height_tower))
+        self.add_input("tower_diameter", val=np.ones(n_height_tower))
+        self.add_input("tower_ref_axis", val=np.ones([n_height_tower, 3]))
+
+      
+        self.add_discrete_input("tower_layer_name", val=n_layers_tower*[""])
+        self.add_discrete_input("tower_layer_material", val=n_layers_tower*[""])
+        self.add_input("tower_layer_thickness", val=np.zeros((n_layers_tower, n_height_tower)))
+            # WEIS does not use these 
+            # self.add_input("tower_layer_%d_start_nd_arc"%i, val=np.zeros(n_height_tower))
+            # self.add_input("tower_layer_%d_end_nd_arc"%i, val=np.zeros(n_height_tower))
+            # self.add_input("tower_layer_%d_fiber_orientation"%i, val=np.zeros(n_height_tower))
+
+        # Strut inputs
+        # YL: looks like the subcomponents in strut all use the same grid so now just one strut grid for everything
+        self.add_input("strut_grid", val=np.linspace(0,1,n_span_strut))
+        self.add_discrete_input("strut_airfoils", val=n_span_strut*[""])
+        self.add_input("strut_chord", val=np.ones(n_span_strut))
+        self.add_input("strut_twist", val=np.zeros(n_span_strut))
+        self.add_input("strut_pitch_axis", val=np.zeros(n_span_strut))
+        self.add_input("strut_ref_axis", val=np.zeros((n_span_strut, 3)))
+
+        self.add_input("strut_web_start_nd_arc", val=0.35*np.ones((n_webs_strut,n_span_strut)))
+        self.add_input("strut_web_end_nd_arc", val=0.65*np.ones((n_webs_strut, n_span_strut)))
+
+
+        self.add_discrete_input("strut_layer_material", val=n_layers_strut*[""])
+        self.add_input("strut_layer_thickness", val=np.zeros((n_layers_strut, n_span_strut)))
+        self.add_input("strut_layer_start_nd_arc", val=np.zeros((n_layers_strut, n_span_strut)))
+        self.add_input("strut_layer_end_nd_arc", val=np.ones((n_layers_strut, n_span_strut)))
+        self.add_input("strut_layer_fiber_orientation", val=np.zeros((n_layers_strut, n_span_strut)))
+
+        # Material inputs
+        self.add_discrete_input("mat_name", val=n_mat * [""], desc="1D array of names of materials.")
+        self.add_input('E',            val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Youngs moduli of the materials. Each row represents a material, the three columns represent E11, E22 and E33.')
+        self.add_input('G',            val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the shear moduli of the materials. Each row represents a material, the three columns represent G12, G13 and G23.')
+        self.add_input('nu',            val=np.zeros([n_mat, 3]), desc='2D array of the Poisson ratio of the materials. Each row represents a material, the three columns represent nu12, nu13 and nu23.')
+        self.add_input('mat_rho',            val=np.zeros(n_mat), units="kg/m**3", desc='1D array of the density of the materials. For composites, this is the density of the laminate.')
+        self.add_input('Xt',           val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Ultimate Tensile Strength (UTS) of the materials. Each row represents a material, the three columns represent Xt12, Xt13 and Xt23.')
+        self.add_input('Xc',           val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Ultimate Compressive Strength (UCS) of the materials. Each row represents a material, the three columns represent Xc12, Xc13 and Xc23.')
+        self.add_input('S',           val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Ultimate Shear Strength (USS) of the materials. Each row represents a material, the three columns represent S12, S13 and S23.')
+        self.add_input('wohler_m_mat',            val=np.zeros([n_mat]),                desc='2D array of the S-N fatigue slope exponent for the materials')
+        self.add_input('ply_t',            val=np.zeros(n_mat), units="m", desc='1D array of the ply thicknesses of the materials. Non-composite materials are kept at 0.')
+        self.add_input('unit_cost',            val=np.zeros(n_mat), units="USD/kg", desc='1D array of the unit costs of the materials.')
+        self.add_input('wohler_A_mat',            val=np.zeros(n_mat), desc='1D array of the wohler intercept of the materials.')
 
 
         # Ignore openfast parts for now
@@ -465,17 +282,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_output("fatigue_damage", val=0.0, desc="20 year fatigue damage")
         self.add_output("mass", units="kg", val=0.0)
 
-        # discretization
-        # The control point setup should be part of the optimization setup
-        # Here should just take in the x_values
-        # n_control_pts = len()
-        self.add_input("blade_x", units="m", val=np.zeros(number_of_grid_pts))
-        self.add_input("blade_y", units="m", val=np.zeros(number_of_grid_pts))
-        self.add_input("blade_z", units="m", val=np.zeros(number_of_grid_pts))
-
-        # scaling variables
-        self.add_input("chord_scale", val=np.ones(2))
-        self.add_input("chord_scale", val=np.ones(2))
+        # discretizations
 
     def initialize_model(self):
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
@@ -496,18 +303,18 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # This live in initialize model
         # TODO: If at any point we want to change the material parameters, we need to take this out to compute
-        self.model.NuMad_geom_xlscsv_file_twr = self.NumadSpec["NuMad_geom_xlscsv_file_twr"]
-        self.model.NuMad_mat_xlscsv_file_twr = self.NumadSpec["NuMad_mat_xlscsv_file_twr"]
-        self.NuMad_geom_xlscsv_file_bld = self.NumadSpec["NuMad_geom_xlscsv_file_bld"]
-        self.NuMad_mat_xlscsv_file_bld = self.NumadSpec["NuMad_mat_xlscsv_file_bld"]
-        self.NuMad_geom_xlscsv_file_strut = self.NumadSpec["NuMad_geom_xlscsv_file_strut"]
-        self.NuMad_mat_xlscsv_file_strut = self.NumadSpec["NuMad_mat_xlscsv_file_strut"]
+        # self.model.NuMad_geom_xlscsv_file_twr = self.NumadSpec["NuMad_geom_xlscsv_file_twr"]
+        # self.model.NuMad_mat_xlscsv_file_twr = self.NumadSpec["NuMad_mat_xlscsv_file_twr"]
+        # self.NuMad_geom_xlscsv_file_bld = self.NumadSpec["NuMad_geom_xlscsv_file_bld"]
+        # self.NuMad_mat_xlscsv_file_bld = self.NumadSpec["NuMad_mat_xlscsv_file_bld"]
+        # self.NuMad_geom_xlscsv_file_strut = self.NumadSpec["NuMad_geom_xlscsv_file_strut"]
+        # self.NuMad_mat_xlscsv_file_strut = self.NumadSpec["NuMad_mat_xlscsv_file_strut"]
 
         # Initialize turbulenece
-        self.model.ifw = self.Turbulence["ifw"]
-        self.model.WindType = self.Turbulence["WindType"]
-        self.model.windINPfilename = self.Turbulence["windINPfilename"]
-        self.model.ifw_libfile = self.Turbulence["ifw_libfile"]
+        self.model.ifw = self.ifw
+        self.model.WindType = self.windType
+        self.model.windINPfilename = self.windINPfilename
+        self.model.ifw_libfile = self.ifw_libfiles
 
         # initialize structural model
         self.model.structuralModel = self.structuralModel
@@ -529,6 +336,32 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
     def compute(self, inputs, outputs):
         modopt = self.options["modeling_options"]
+        rotorse_options = self.options["rotorse_options"]
+        towerse_options = self.options["towerse_options"]
+        strut_options = self.options["strut_options"]
+        n_span = rotorse_options["n_span"]
+        n_layers = rotorse_options["n_layers"]
+        n_webs = rotorse_options["n_webs"]
+        n_mat = modopt["materials"]["n_mat"]
+
+        blade_web_names = rotorse_options["web_name"]
+        blade_layer_names = rotorse_options["layer_name"]
+        blade_layer_materials = rotorse_options["layer_mat"]
+
+        # WEIS does not have tower web and it's also empty in OWENS input yaml
+        # tower_web_names = towerse_options["web_name"]
+        # WEIS does not store tower names and materials in options
+        # They are inputs and outputs
+        tower_layer_names = towerse_options["layer_name"]
+        tower_layer_materials = towerse_options["layer_mat"]
+        n_height_tower = towerse_options["n_height"] # or towerse_options["n_height_tower"]
+        n_layers_tower = towerse_options["n_layers"]
+        n_webs_tower = towerse_options["n_webs"]
+
+        strut_web_names = strut_options["web_name"]
+        strut_layer_names = strut_options["layer_name"]
+        # strut_layer_materials = strut_options["layer_mat"] # Get these from inputs
+
 
         path = self.run_path
         eta = modopt["eta"]
@@ -538,12 +371,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         towerHeight = inputs["towerHeight"][0]
 
         # Blade dicretization
-        blade_x = inputs["blade_x"]
-        blade_y = inputs["blade_y"]
-        blade_z = inputs["blade_z"]
-
-        # scaling input
-        chord_scale = inputs["chord_scale"]
+        blade_x = inputs["structure_ref_axis"][:,0]
+        blade_y = inputs["structure_ref_axis"][:,1]
+        blade_z = inputs["structure_ref_axis"][:,2]
 
         rho = inputs["rho"][0]
         Vinf = inputs["Vinf"][0]
@@ -555,10 +385,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
         Nslices = int(inputs["NSlices"][0])
         ntheta = int(inputs["ntheta"][0])
 
-        ntelem = int(inputs["ntelem"][0])
-        nbelem = int(inputs["nbelem"][0])
-        ncelem = int(inputs["ncelem"][0])
-        nselem = int(inputs["nselem"][0])
+        ntelem = int(modopt["ntelem"])
+        nbelem = int(modopt["nbelem"])
+        ncelem = int(modopt["ncelem"])
+        nselem = int(modopt["nselem"])
 
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
         # and then update the model inputs
@@ -566,8 +396,181 @@ class OWENSUnsteadySetup(ExplicitComponent):
         #   self.update_model_with_yaml(inputs):
         # else update the model directly as follows:
 
-        AModel = self.aeroModel
+        AModel = self.aeroModels
         mesh_type = self.turbine_type
+
+        # Assemble the ordered dictionaries for the readNumad
+        # NuMad_geom_xlscsv_file_twr should contain everything under tower from the yaml inputs
+
+        # ---------- blade structure --------------
+        blade_geo_dict = {}
+        blade_geo_dict["outer_shape_bem"] = {}
+        blade_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
+        blade_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = inputs["airfoil_grid"]
+        blade_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = inputs["airfoil_labels"]
+        blade_geo_dict["outer_shape_bem"]["chord"] = {}
+        blade_geo_dict["outer_shape_bem"]["chord"]["grid"] = inputs["chord_grid"]
+        blade_geo_dict["outer_shape_bem"]["chord"]["values"] = inputs["chord"]
+        blade_geo_dict["outer_shape_bem"]["twist"] = {}
+        blade_geo_dict["outer_shape_bem"]["twist"]["grid"] = inputs["twist_grid"]
+        blade_geo_dict["outer_shape_bem"]["twist"]["values"] = inputs["twist"]
+        blade_geo_dict["outer_shape_bem"]["pitch_axis"] = {}
+        blade_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = inputs["pitch_axis_grid"]
+        blade_geo_dict["outer_shape_bem"]["pitch_axis"]["values"] = inputs["pitch_axis"]
+        blade_geo_dict["outer_shape_bem"]["reference_axis"] = inputs["reference_axis"]
+        blade_geo_dict["internal_structure_2d_fem"] = {}
+        blade_geo_dict["internal_structure_2d_fem"]["reference_axis"] = inputs["structure_reference_axis"]
+        blade_geo_dict["internal_structure_2d_fem"]["webs"] = {}
+        blade_geo_dict["internal_structure_2d_fem"]["layers"] = {}
+
+        # The grid for the internal structure 2d gem are all the same, they all the same as internal_structuure_2d_fem.s
+        for i in range(n_webs):
+            blade_geo_dict["internal_structure_2d_fem"]["webs"][i]["name"] = blade_web_names[i]
+            blade_geo_dict["internal_structure_2d_fem"]["webs"][i]["start_nd_arc"]["grid"] = inputs["structure_grid"]
+            blade_geo_dict["internal_structure_2d_fem"]["webs"][i]["start_nd_arc"]["values"] = inputs["web_start_nd_arc"][i,:]
+            blade_geo_dict["internal_structure_2d_fem"]["webs"][i]["end_nd_arc"]["grid"] = inputs["structure_grid"]
+            blade_geo_dict["internal_structure_2d_fem"]["webs"][i]["end_nd_arc"]["values"] = inputs["web_end_nd_arc"][i,:]
+
+        for i in range(n_layers):
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["name"] = blade_layer_names[i]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["material"] = inputs["layer_material"][i,:]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"]["values"] = inputs["layer_start_nd_arc"][i,:]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"]["grid"] = inputs["structure_grid"]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"]["values"] = inputs["layer_end_nd_arc"][i,:]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"]["grid"] = inputs["structure_grid"]
+
+            # loop to find the material ply thickness and compute the n_plies for OWENS
+            for m, name in enumerate(inputs["mat_name"]):
+                if inputs["layer_%d_material"%i] == name:
+                    n_plies = inputs["layer_thickness"][i,:]/inputs["ply_t"][m]
+
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["values"] = n_plies
+
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["grid"] = inputs["structure_grid"]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"]["values"] = inputs["layer_fiber_orientation"][i,:]
+            blade_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"]["grid"] = inputs["structure_grid"]
+
+
+        # ---------- tower structure --------------
+        nd_tower_grid = inputs["tower_grid"] # WEIS gives non-dimensional grid
+        tower_diameter = inputs["tower_diameter"]
+        tower_length = arc_length(inputs["tower_reference_axis"])
+        tower_grid = nd_tower_grid*tower_length
+        
+        
+        tower_geo_dict = {}
+        tower_geo_dict["outer_shape_bem"] = {}
+        tower_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
+        tower_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = tower_grid
+        tower_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = n_height_tower *["Circular"]
+        tower_geo_dict["outer_shape_bem"]["chord"] = {}
+        tower_geo_dict["outer_shape_bem"]["chord"]["grid"] = inputs["tower_grid"]
+        tower_geo_dict["outer_shape_bem"]["chord"]["values"] = inputs["tower_chord"]
+        tower_geo_dict["outer_shape_bem"]["twist"] = {}
+        tower_geo_dict["outer_shape_bem"]["twist"]["grid"] = inputs["tower_grid"]
+        tower_geo_dict["outer_shape_bem"]["twist"]["values"] = inputs["tower_twist"]
+        tower_geo_dict["outer_shape_bem"]["pitch_axis"] = {}
+        tower_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = inputs["tower_grid"]
+        tower_geo_dict["outer_shape_bem"]["pitch_axis"]["values"] = inputs["tower_pitch_axis"]
+        tower_geo_dict["outer_shape_bem"]["reference_axis"] = inputs["tower_reference_axis"]
+        tower_geo_dict["internal_structure_2d_fem"] = {}
+        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"] = inputs["tower_structure_reference_axis"] # Not needed in readNuMad
+        tower_geo_dict["internal_structure_2d_fem"]["webs"] = {}
+        tower_geo_dict["internal_structure_2d_fem"]["layers"] = {}
+
+        # There should be no web for tower, web just an empty dict
+        # for i in range(n_webs):
+        #     tower_geo_dict["internal_structure_2d_fem"]["webs"][i]["name"] = rotorse_options["web_name"][i]
+        #     tower_geo_dict["internal_structure_2d_fem"]["webs"][i]["start_nd_arc"]["grid"] = inputs["tower_grid"]
+        #     tower_geo_dict["internal_structure_2d_fem"]["webs"][i]["start_nd_arc"]["values"] = inputs["web_%d_start_nd_arc"%i]
+        #     tower_geo_dict["internal_structure_2d_fem"]["webs"][i]["end_nd_arc"]["grid"] = inputs["tower_grid"]
+        #     tower_geo_dict["internal_structure_2d_fem"]["webs"][i]["end_nd_arc"]["values"] = inputs["web_%d_end_nd_arc"%i]
+
+        for i in range(n_layers_tower):
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i] = {}
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["name"] = tower_layer_names[i]
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["material"] = inputs["tower_layer_material"][i]
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"] = {}
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"]["values"] = np.zeros(n_height_tower)
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"]["grid"] = tower_grid
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"] = {}
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"]["values"] = np.ones(n_height_tower)
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"]["grid"] = tower_grid
+
+            # loop to find the material ply thickness and compute the n_plies for OWENS
+            for m, name in enumerate(inputs["mat_name"]):
+                if inputs["layer_%d_material"%i] == name:
+                    n_plies = inputs["tower_layer_thickness"][i,:]/inputs["ply_t"][m]
+
+
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"] = {}
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["values"] = n_plies
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["grid"] = tower_grid
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"] = {}
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"]["values"] = np.zeros(n_height_tower)
+            tower_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"]["grid"] = tower_grid
+
+        # ---------- strut structure --------------
+        strut_geo_dict = {}
+        strut_geo_dict["outer_shape_bem"] = {}
+        strut_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
+        # strut grid in OWENS yaml is dimensional but it doesn't matter
+        # the strut dimension is determined by the strut mountpoint to tower and blade
+        strut_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = inputs["strut_grid"]
+        strut_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = inputs["strut_airfoil_labels"]
+        strut_geo_dict["outer_shape_bem"]["chord"]["grid"] = inputs["strut_grid"]
+        strut_geo_dict["outer_shape_bem"]["chord"]["values"] = inputs["strut_chord"]
+        strut_geo_dict["outer_shape_bem"]["twist"]["grid"] = inputs["strut_grid"]
+        strut_geo_dict["outer_shape_bem"]["twist"]["values"] = inputs["strut_twist"]
+        strut_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = inputs["strut_grid"]
+        strut_geo_dict["outer_shape_bem"]["pitch_axis"]["values"] = inputs["strut_pitch_axis"]
+        strut_geo_dict["outer_shape_bem"]["reference_axis"] = inputs["strut_reference_axis"] # Not needed in readNuMad
+        strut_geo_dict["internal_structure_2d_fem"] = {}
+        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"] = inputs["strut_structure_reference_axis"]
+        strut_geo_dict["internal_structure_2d_fem"]["webs"] = {}
+        strut_geo_dict["internal_structure_2d_fem"]["layers"] = {}
+
+        # The grid for the internal structure 2d gem are all the same, they all the same as internal_structure_2d_fem.s
+        for i in range(n_webs):
+            strut_geo_dict["internal_structure_2d_fem"]["webs"][i]["name"] = strut_web_names[i]
+            strut_geo_dict["internal_structure_2d_fem"]["webs"][i]["start_nd_arc"]["grid"] = inputs["strut_grid"]
+            strut_geo_dict["internal_structure_2d_fem"]["webs"][i]["start_nd_arc"]["values"] = inputs["strut_web_start_nd_arc"][i,:]
+            strut_geo_dict["internal_structure_2d_fem"]["webs"][i]["end_nd_arc"]["grid"] = inputs["strut_grid"]
+            strut_geo_dict["internal_structure_2d_fem"]["webs"][i]["end_nd_arc"]["values"] = inputs["strut_web_end_nd_arc"][i,:]
+
+        for i in range(n_layers):
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["name"] = strut_layer_names[i]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["material"] = inputs["strut_layer_material"][i,:]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"]["values"] = inputs["strut_layer_start_nd_arc"][i,:]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["start_nd_arc"]["grid"] = inputs["strut_grid"]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"]["values"] = inputs["strut_layer_end_nd_arc"][i,:]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["end_nd_arc"]["grid"] = inputs["strut_grid"]
+            # strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["values"] = inputs["strut_layer_nplies"]
+            # loop to find the material ply thickness and compute the n_plies for OWENS
+            for m, name in enumerate(inputs["mat_name"]):
+                if inputs["strut_layer_material"][i] == name:
+                    n_plies = inputs["strut_layer_thickness"][i,:]/inputs["ply_t"][m]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["values"] = n_plies
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["n_plies"]["grid"] = inputs["strut_grid"]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"]["values"] = inputs["strut_layer_fiber_orientation"][i,:]
+            strut_geo_dict["internal_structure_2d_fem"]["layers"][i]["fiber_orientation"]["grid"] = inputs["strut_grid"]
+
+
+
+        # materials dict
+        material_dict = OrderedDict()
+        for i in range(n_mat):
+            material_dict[i]["name"] = inputs["mat_name"][i]
+            material_dict[i]["ply_t"] = inputs["ply_t"][i]
+            material_dict[i]["E"] = inputs["E"][i,:]
+            material_dict[i]["G"] = inputs["G"][i,:]
+            material_dict[i]["nu"] = inputs["nu"][i,:]
+            material_dict[i]["rho"] = inputs["mat_rho"][i]
+            material_dict[i]["Xt"] = inputs["Xt"][i,:]
+            material_dict[i]["Xc"] = inputs["Xc"][i,:]
+            material_dict[i]["unit_cost"] = inputs["unit_cost"][i]
+            material_dict[i]["A"] = inputs["wohler_A_mat"][i]
+            material_dict[i]["m"] = inputs["wohler_m_mat"][i]
 
         setup_outputs = jl.OWENS.setupOWENS(jl.OWENSAero, path, 
                                             rho=rho,
@@ -590,13 +593,12 @@ class OWENSUnsteadySetup(ExplicitComponent):
                                             AD15hubR = 0.1,
                                             windINPfilename=self.Turbulence["windINPfilename"],
                                             ifw_libfile=self.Turbulence["ifw_libfile"],
-                                            NuMad_geom_xlscsv_file_twr=self.NumadSpec["NuMad_geom_xlscsv_file_twr"],
-                                            NuMad_mat_xlscsv_file_twr=self.NumadSpec["NuMad_mat_xlscsv_file_twr"],
-                                            NuMad_geom_xlscsv_file_bld=self.NumadSpec["NuMad_geom_xlscsv_file_bld"],
-                                            NuMad_mat_xlscsv_file_bld=self.NumadSpec["NuMad_mat_xlscsv_file_bld"],
-                                            NuMad_geom_xlscsv_file_strut=self.NumadSpec["NuMad_geom_xlscsv_file_strut"],
-                                            NuMad_mat_xlscsv_file_strut=self.NumadSpec["NuMad_mat_xlscsv_file_strut"],
-                                            chord_scale = chord_scale,
+                                            NuMad_geom_xlscsv_file_twr=tower_geo_dict,
+                                            NuMad_mat_xlscsv_file_twr=material_dict,
+                                            NuMad_geom_xlscsv_file_bld=blade_geo_dict,
+                                            NuMad_mat_xlscsv_file_bld=material_dict,
+                                            NuMad_geom_xlscsv_file_strut=strut_geo_dict,
+                                            NuMad_mat_xlscsv_file_strut=material_dict,
                                             ntelem=ntelem,
                                             nbelem=nbelem,
                                             ncelem=ncelem,
@@ -792,7 +794,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Other outputs for constraints
         outputs["SF"] = minSF
         outputs["fatigue_damage"] = maxFatiguePer20yr # - 1.0
-        # print("fatigue damage: ", outputs["fatigue_damage"])
+        print("fatigue damage: ", outputs["fatigue_damage"])
         # power constraint can be imposed elsewhere
         # since it is already an output
 

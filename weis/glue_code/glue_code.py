@@ -13,7 +13,7 @@ from wisdem.commonse.cylinder_member import CylinderPostFrame
 from wisdem.plant_financese.plant_finance import PlantFinance
 from wisdem.commonse.turbine_constraints  import TurbineConstraints
 from weis.aeroelasticse.openmdao_openfast import FASTLoadCases
-from weis.owens.openmdao_owens_integration import OWENSUnsteadySetup
+from weis.owens.openmdao_owens import OWENSUnsteadySetup
 from weis.control.dac import RunXFOIL
 from wisdem.rotorse.rotor_power import NoStallConstraint
 from weis.control.tune_rosco import ServoSE_ROSCO, ROSCO_Turbine
@@ -953,4 +953,67 @@ class WindPark(om.Group):
                     self.connect('aeroelastic.OL2CL_pitch',      'outputs_2_screen_weis.OL2CL_pitch')
         
         if modeling_options['OWENS']['flag']:
-            self.add_subsystem('owens',       OWENSUnsteadySetup(modeling_options = modeling_options, opt_options = opt_options))
+            self.add_subsystem('owens', OWENSUnsteadySetup(modeling_options = modeling_options, rotorse_options = modeling_options["WISDEM"]["RotorSE"], towerse_options = modeling_options["WISDEM"]["TowerSE"], strut_options = modeling_options["OWENS"]["struts"], opt_options = opt_options))
+
+            # connect blade to owens blade
+            self.connect("blade.outer_shape_bem.s", ["owens.airfoil_grid", "owens.chord_grid", "owens.twist_grid", "owens.pitch_axis_grid", "owens.structure_grid"])
+            self.connect("blade.pa.chord_param", "owens.chord_values")
+            self.connect("blade.pa.twist_param", "owens.twist_values")
+            self.connect("blade.outer_shape_bem.pitch_axis", "owens.pitch_axis_values")
+            
+            self.connect("blade.internal_structure_2d_fem.web_start_nd", "owens.web_start_nd_arc")
+            self.connect("blade.internal_structure_2d_fem.web_end_nd", "owens.web_end_nd_arc")
+
+            self.connect("blade.internal_structure_2d_fem.layer_start_nd", "owens.layer_start_nd_arc")
+            self.connect("blade.internal_structure_2d_fem.layer_end_nd", "owens.layer_end_nd_arc")
+            self.connect("blade.internal_structure_2d_fem.layer_orientation", "owens.layer_fiber_orientation")
+            self.connect("blade.ps.layer_thickness_param", "owens.layer_thickness")
+
+            # connect tower to owens tower
+            self.connect("tower.ref_axis", "owens.tower_ref_axis")
+            self.connect("tower.diameter", "owens.tower_diameter")
+
+            self.connect("tower.layer_thickness", "owens.tower_layer_thickness")
+            self.connect("tower.layer_mat", "owens.tower_layer_material")
+            self.connect("tower.layer_name", "owens.tower_layer_name")
+
+            # connect struts to owens struts
+            n_span_strut = modeling_options["OWENS"]["struts"]["n_af_span"]
+            n_layers_strut = modeling_options["OWENS"]["struts"]["n_layers"]
+            n_webs_strut = modeling_options["OWENS"]["struts"]["n_webs"]
+            self.connect("struts.nd_span", "owens.strut_grid")
+            self.connect("struts.chord", "owens.strut_chord")
+            self.connect("struts.twist", "owens.strut_twist")
+            self.connect("struts.pitch_axis", "owens.strut_pitch_axis")
+            self.connect("struts.reference_axis", "owens.strut_ref_axis")
+            self.connect("struts.airfoil_labels", "owens.strut_airfoils")
+
+            # layers
+            self.connect("struts.layer_thickness", "owens.strut_layer_thickness")
+            self.connect("struts.layer_material", "owens.strut_layer_material")
+            self.connect("struts.layer_start_nd_arc", "owens.strut_layer_start_nd_arc")
+            self.connect("struts.layer_end_nd_arc", "owens.strut_layer_end_nd_arc")
+            self.connect("struts.layer_fiber_orientation", "owens.strut_layer_fiber_orientation")
+
+            # webs
+            self.connect("struts.web_start_nd_arc", "owens.strut_web_start_nd_arc")
+            self.connect("struts.web_end_nd_arc", "owens.strut_web_end_nd_arc")
+
+
+            # connect materials to owen materials
+            n_mat = modeling_options["materials"]["n_mat"]
+
+            self.connect("materials.E", "owens.E")
+            self.connect("materials.G", "owens.G")
+            self.connect("materials.nu", "owens.nu")
+            self.connect("materials.Xt", "owens.Xt")
+            self.connect("materials.Xc", "owens.Xc")
+            self.connect("materials.S", "owens.S")
+            self.connect("materials.unit_cost", "owens.unit_cost")
+            self.connect("materials.wohler_exp", "owens.wohler_m_mat")
+            self.connect("materials.wohler_intercept", "owens.wohler_A_mat")
+            self.connect("materials.ply_t_from_yaml", "owens.ply_t")
+
+
+            
+                
