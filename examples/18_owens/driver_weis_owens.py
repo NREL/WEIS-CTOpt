@@ -39,5 +39,5 @@ else:
 if rank == 0:
     # shutil.copyfile(os.path.join(analysis_options['general']['folder_output'],analysis_options['general']['fname_output']+'.yaml'), fname_wt_input)
     print("Tower mass (kg) =", wt_opt["towerse.tower_mass"])
-    print("Floating platform mass (kg) =", wt_opt["floatingse.platform_mass"])
+    # print("Floating platform mass (kg) =", wt_opt["floatingse.platform_mass"])
 
