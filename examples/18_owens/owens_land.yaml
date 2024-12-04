@@ -12,7 +12,7 @@ components:
                     values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
                 z:
                     grid: *id000
-                    values: [0, 6.607421057, 13.21484211, 19.82226317, 26.42968423, 33.03710529, 39.64452634, 46.2519474, 52.85936846, 59.46678951, 66.07421057, 72.68163163, 79.28905268, 85.89647374, 92.5038948, 99.11131586, 105.7187369, 112.326158, 118.933579, 125.5410001, 132.1484211]
+                    values: [0, 6.607421057, 13.21484211, 19.82226317, 26.42968423, 33.03710529, 39.64452634, 46.2519474, 52.85936846, 59.46678951, 66.07421057, 72.68163163, 79.28905268, 85.89647374, 92.5038948, 99.11131586, 105.7187369, 112.326158, 118.933579, 125.5410001, 132.1484211] # The reference axis z of tower cannot be zeros, otherwise the towerse in wisdem will give errors
             outer_diameter:
                 grid: *id000
                 values: [5.888066637, 5.788249614, 5.684865834, 5.577578504, 5.465996871, 5.349663569, 5.22803793, 5.100473576, 4.966187737, 4.824218239, 4.673361587, 4.512081003, 4.338364592, 4.149496455, 3.941665819, 3.70924955, 3.443362258, 3.128502234, 2.732998436, 2.169182296, 2.0]
@@ -51,7 +51,7 @@ components:
                   material: Generic_Skin
                   thickness:
                       grid: *id000
-                      values: [0.089213, 0.087701, 0.086134, 0.084509, 0.082818, 0.081056, 0.079213, 0.07728 , 0.075245, 0.073094, 0.070809, 0.068365, 0.065733, 0.062871, 0.059722, 0.056201, 0.052172, 0.047402, 0.041409, 0.032866, 0.030303]
+                      values: [0.008921, 0.00877 , 0.008613, 0.008451, 0.008282, 0.008106,0.007921, 0.007728, 0.007525, 0.007309, 0.007081, 0.006836, 0.006573, 0.006287, 0.005972, 0.00562 , 0.005217, 0.00474 , 0.004141, 0.003287, 0.00303 ]
                 #   n_plies:
                 #       grid: *id000
                 #       values: [8.921, 8.770, 8.613, 8.451, 8.282, 8.106, 7.921, 7.728, 7.525, 7.309, 7.081, 6.836, 6.573, 6.287, 5.972, 5.620, 5.217, 4.740, 4.141, 3.287, 3.030]
@@ -72,7 +72,7 @@ components:
             pitch_axis:
                 grid: *id001
                 values: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
-
+            blade_mountpoint: 0.5
             # OWENS only uses the reference axis of internal structure 2d fem but in windIO this is usually defined equal to the refenrece axis in the outer shape bem, so move the values in internal sturcture 2d fem here
             reference_axis:
                 x: &xid001
@@ -326,6 +326,8 @@ components:
             joint: {position: 0.0, mass: 0.0, cost: 0.0, bolt: M30, nonmaterial_cost: 0.0, reinforcement_layer_ss: joint_reinf_ss, reinforcement_layer_ps: joint_reinf_ps}
     struts:
     #   - name: strut1
+        mountfraction_blade: [0.11, 0.89]
+        mountfraction_tower: [0.11, 0.89]
         outer_shape_bem:
             airfoil_position:
                 grid: &id002 [0, 0.33331652, 0.66668348, 1.0] # Changed to nondimensionalized
@@ -750,7 +752,7 @@ materials:
     #   m: [0.0,1.0,2.0,4.0,6.0,20.0]
    -  {name: resin, description: epoxy, source: Described in https://doi.org/10.5194/wes-7-19-2022, E: 1000000.0, nu: 0.3, G: 312500.0, GIc: 0.0, GIIc: 0.0, alp0: 0.0, Xt: 0.0, Xc: 0.0, S: 0.0, rho: 1150.0, alpha: 0.0, orth: 0.0, unit_cost: 3.63} # No resin in the original OWENS yaml, but WEIS requires resin for composites
    -  {name: Adhesive, orth: 0.0, rho: 1100.0, E: 4560000.0, G: 1450000.0, nu: 0.3, alpha: 0.0, Xt: 61510000.0, Xc: 65360000.0, S: 36610000.0, GIc: 0.0, GIIc: 0.0, alp0: 0.0, ply_t: 0.001, waste: 0.25, unit_cost: 7.23} # No adhesive in the original OWENS yaml, but WEIS requires adhesive for cost models
-control:
+control: # This has to be here for connection to work. Copied from IEA22
     supervisory: {Vin: 0.5, Vout: 4.0, maxTS: 60}
     pitch: {PC_zeta: !!null '', PC_omega: !!null '', ps_percent: !!null '', max_pitch: !!null '', max_pitch_rate: 0.1745, min_pitch: 0.00088}
     torque: {control_type: !!null '', tsr: 7.64, VS_zeta: !!null '', VS_omega: !!null '', max_torque_rate: 1500000.0, VS_minspd: 0.0, VS_maxspd: 1.26711}

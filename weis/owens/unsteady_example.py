@@ -1,6 +1,6 @@
 import numpy as np
 import openmdao.api as om
-from openmdao_owens import *
+from openmdao_owens_standalone import *
 from scipy.interpolate import PchipInterpolator, Akima1DInterpolator
 
 class discretization_x(om.ExplicitComponent):
@@ -28,7 +28,8 @@ class discretization_x(om.ExplicitComponent):
         max_radius = inputs["max_radius"][0]
 
         x_control_values = np.array([0, quarter_span, max_radius, quarter_span, 0])
-        blade_x  = Akima1DInterpolator(x_control_pts_grid, x_control_values)(x_grid)
+        # blade_x  = Akima1DInterpolator(x_control_pts_grid, x_control_values)(x_grid)
+        blade_x = np.array([0.0, 6.961447494399997, 13.442795161599998, 19.444043001599994, 24.965191014399995, 30.006239199999996, 34.5671875584, 38.6480360896, 42.248784793599995, 45.3694336704, 48.00998272, 50.1704319424, 51.8507813376, 53.0510309056, 53.7711806464, 54.01123056, 53.7711806464, 53.0510309056, 51.8507813376, 50.1704319424, 48.009982720000004, 45.36943367040001, 42.24878479360001, 38.6480360896, 34.56718755839999, 30.006239199999996, 24.965191014399995, 19.444043001599994, 13.442795161599998, 6.961447494399997, 0.0])
 
         outputs["blade_x"] = blade_x
 
@@ -69,7 +70,7 @@ options = {
 }
 
 model.add_subsystem("discretization", discretization_x(number_of_control_pts=5, number_of_grid_pts=len(x)), promotes=["*"])
-model.add_subsystem("crossflow", OWENSUnsteadySetup(modeling_options=options), promotes=["*"])
+model.add_subsystem("crossflow", OWENSUnsteadySetup2(modeling_options=options), promotes=["*"])
 
 # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens" for this example to work
 
@@ -91,7 +92,7 @@ prob.run_model()
 print("quarter_span of 24 m and max radius of 42 m")
 print("Mean power is : "+str(prob.get_val("power")))
 print("lcoe is : "+str(prob.get_val("lcoe")))
-# exit()
+exit()
 # run opt
 prob.driver = om.pyOptSparseDriver()
 prob.driver.options["optimizer"] = "SLSQP"

@@ -19,7 +19,7 @@ fname_analysis_options = mydir + os.sep + "analysis_options_owens_DVs.yaml"
 
 analysis_override = {}
 analysis_override['general'] = {}
-analysis_override['general']['folder_output'] = os.path.join('outputs/18_OWENS_OptStudies/1_change_opt/',"slsqp")
+analysis_override['general']['folder_output'] = os.path.join('outputs/18_OWENS_OptStudies/1_change_opt_chord_radius/',"slsqp")
 analysis_override['driver'] = {}
 analysis_override['driver']['optimization'] = {}
 analysis_override['driver']['optimization']['solver'] = "SLSQP"

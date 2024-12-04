@@ -960,7 +960,7 @@ class WindPark(om.Group):
             self.connect("blade.pa.chord_param", "owens.blade_chord_values")
             self.connect("blade.pa.twist_param", "owens.blade_twist_values")
             self.connect("blade.outer_shape_bem.pitch_axis", "owens.blade_pitch_axis_values")
-            self.connect("blade.outer_shape_bem.ref_axis", "owens.blade_ref_axis")
+            self.connect("blade.high_level_blade_props.blade_ref_axis", "owens.blade_ref_axis")
             
             self.connect("blade.internal_structure_2d_fem.web_start_nd", "owens.blade_web_start_nd_arc")
             self.connect("blade.internal_structure_2d_fem.web_end_nd", "owens.blade_web_end_nd_arc")

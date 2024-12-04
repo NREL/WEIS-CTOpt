@@ -68,7 +68,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         rotorse_options = self.options["rotorse_options"]
         towerse_options = self.options["towerse_options"]
         strut_options = self.options["strut_options"]
-        OWENS_path = modopt["OWENS"]["OWENS_project_path"]
+        OWENS_path = modopt["OWENS"]["general"]["OWENS_project_path"]
 
 
         jlPkg.activate(OWENS_path)
@@ -77,11 +77,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
         jl.seval("import PythonCall")
         jl.seval("using OrderedCollections")
 
-
-        master_file = modopt["OWENS"]["master_input"]
-
-        # Initialize an OWENS model
-        self.model = jl.OWENS.MasterInput(master_file)
 
         self.n_span = rotorse_options["n_span"]
         self.n_layers = rotorse_options["n_layers"]
@@ -98,32 +93,63 @@ class OWENSUnsteadySetup(ExplicitComponent):
         n_webs_strut = strut_options["n_webs"]
 
 
-        # analysisType: unsteady # unsteady, steady, modal
-        # turbineType: Darrieus #Darrieus, H-VAWT, ARCUS   
-        # These should be in modeling options?   
-        # Currently, they are just normal openmdao component options,
-        # Not considering any WEIS data/input structure
-        # Probably needs to be like modopt["crossflow"]["analysis_type"]
-        self.analysis_type = modopt["OWENS"]["analysisType"]
-        self.turbine_type = modopt["OWENS"]["turbineType"]
-        self.eta = modopt["OWENS"]["eta"] # Now eta is a modeling option
-        self.control_strategy = modopt["OWENS"]["controlStrategy"]
-        self.aeroModel = modopt["OWENS"]["AModel"]
-        self.adi_lib = modopt["OWENS"]["adi_lib"]
-        self.adi_rootname = modopt["OWENS"]["adi_rootname"]
-        # self.NumadSpec = modopt["OWENS"]["NumadSpec"] # All files go here
-        # self.Turbulence = modopt["OWENS"]["TurbulenceSpec"] # All files go here
-        self.ifw = modopt["OWENS"]["ifw"]
-        self.windType = modopt["OWENS"]["windType"]
-        self.windINPfilename = modopt["OWENS"]["windINPfilename"]
-        self.ifw_libfiles = modopt["OWENS"]["ifw_libfiles"]
-        self.n_blades = modopt["assembly"]["number_of_blades"]
-        self.structuralModel = modopt["OWENS"]["structuralModel"]
-        self.structuralNonlinear = modopt["OWENS"]["structuralNonlinear"]
-        self.run_path = modopt["OWENS"]["run_path"] # What exactly is this path?
+        # Initialize OWENS modeling options
+        self.owens_modeling_options = {}
+        self.owens_modeling_options["OWENS_Options"] = {}
+        self.owens_modeling_options["OWENS_Options"]["analysisType"] = modopt["OWENS"]["general"]["analysisType"]
+        self.owens_modeling_options["OWENS_Options"]["AeroModel"] = modopt["OWENS"]["general"]["AeroModel"]
+        self.owens_modeling_options["OWENS_Options"]["structuralModel"] = modopt["OWENS"]["general"]["structuralModel"]
+        self.owens_modeling_options["OWENS_Options"]["controlStrategy"] = modopt["OWENS"]["general"]["controlStrategy"]
+        self.owens_modeling_options["OWENS_Options"]["numTS"] = modopt["OWENS"]["general"]["numTS"]
+        self.owens_modeling_options["OWENS_Options"]["delta_t"] = modopt["OWENS"]["general"]["delta_t"]
+        self.owens_modeling_options["OWENS_Options"]["dataOutputFilename"] = modopt["OWENS"]["general"]["dataOutputFilename"]
+        self.owens_modeling_options["OWENS_Options"]["MAXITER"] = modopt["OWENS"]["general"]["MAXITER"]
+        self.owens_modeling_options["OWENS_Options"]["TOL"] = modopt["OWENS"]["general"]["TOL"]
+        self.owens_modeling_options["OWENS_Options"]["verbosity"] = modopt["OWENS"]["general"]["verbosity"]
+        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = modopt["OWENS"]["general"]["VTKsaveName"]
+        self.owens_modeling_options["OWENS_Options"]["aeroLoadsOn"] = modopt["OWENS"]["general"]["aeroLoadsOn"]
+        self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_time_controlpoints"] = modopt["OWENS"]["general"]["Prescribed_RPM_time_controlpoints"]
+        self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"] = modopt["OWENS"]["general"]["Prescribed_RPM_RPM_controlpoints"]
+        self.owens_modeling_options["OWENS_Options"]["Prescribed_Vinf_time_controlpoints"] = modopt["OWENS"]["general"]["Prescribed_Vinf_time_controlpoints"]
+        self.owens_modeling_options["OWENS_Options"]["Prescribed_Vinf_Vinf_controlpoints"] = modopt["OWENS"]["general"]["Prescribed_Vinf_Vinf_controlpoints"]
 
-        # Reinitialize the model with the inputs from modeling options
-        self.initialize_model()
+
+        # Write out modeling option file
+        self.owens_modeling_options["DLC_Options"] = modopt["OWENS"]["DLC_Options"]
+        self.owens_modeling_options["OWENSAero_Options"] = modopt["OWENS"]["OWENSAero_Options"]
+        self.owens_modeling_options["OWENSFEA_Options"] = modopt["OWENS"]["OWENSFEA_Options"]
+        self.owens_modeling_options["Mesh_Options"] = modopt["OWENS"]["Mesh_Options"]
+        self.owens_modeling_options["OWENSOpenFASTWrappers_Options"] = modopt["OWENS"]["OWENSOpenFASTWrappers"]
+        FileTools.save_yaml(outdir="./", fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
+
+
+        # self.analysis_type = modopt["OWENS"]["general"]["analysisType"]
+        # self.turbine_type = modopt["OWENS"]["general"]["turbineType"]
+        # self.control_strategy = modopt["OWENS"]["controlParameters"]["controlStrategy"]
+        # self.aeroModel = modopt["OWENS"]["AeroParameters"]["AeroModel"]
+        # self.adi_lib = modopt["OWENS"]["AeroParameters"]["adi_lib"]
+        # self.adi_rootname = modopt["OWENS"]["AeroParameters"]["adi_rootname"]
+        # self.Nslices = modopt["OWENS"]["AeroParameters"]["Nslices"]
+        # self.ntheta = modopt["OWENS"]["AeroParameters"]["ntheta"]
+        # # self.NumadSpec = modopt["OWENS"]["NumadSpec"] # All files go here
+        # # self.Turbulence = modopt["OWENS"]["TurbulenceSpec"] # All files go here
+        # self.ifw = modopt["OWENS"]["Inflow"]["ifw"]
+        # self.windType = modopt["OWENS"]["Inflow"]["windType"]
+        # self.windINPfilename = modopt["OWENS"]["Inflow"]["windINPfilename"]
+        # self.ifw_libfiles = modopt["OWENS"]["Inflow"]["ifw_libfiles"]
+        # self.n_blades = modopt["assembly"]["number_of_blades"]
+        # self.structuralModel = modopt["OWENS"]["structuralParameters"]["structuralModel"]
+        # self.structuralNonlinear = modopt["OWENS"]["structuralParameters"]["nonlinear"]
+        # self.run_path = modopt["OWENS"]["general"]["run_path"] # What exactly is this path?
+
+        # # set other modeling options
+        # self.numTS = modopt["OWENS"]["general"]["numTS"]
+        # self.delta_t = modopt["OWENS"]["general"]["delta_t"]
+        # self.RPM = modopt["OWENS"]["controlParameters"]["RPM"]
+
+
+        # # Reinitialize the model with the inputs from modeling options
+        # self.initialize_model()
 
         # number_of_grid_pts = modopt["number_of_grid_pts"]
 
@@ -142,14 +168,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Solver options (come from modeling options)
         
         # Control inputs
-        if self.control_strategy == "constantRPM":
-            self.add_input("RPM", val=17.2, desc="RPM")
-            self.add_input("numTS", val=20)
-            self.add_input("delta_t", val=0.01, units="s")
-
-        # Aero parameters
-        self.add_input("NSlices", val=30, desc="number of VAWTAero discritizations")
-        self.add_input("ntheta", val=30, desc="number of VAWTAero azimuthal discretizations")
+        if self.owens_modeling_options["OWENS_Options"]["controlStrategy"] == "prescribedRPM":
+            self.add_input("RPM", val=15.0, desc="RPM")
 
         # Environmental conditions
         # Maybe this fits better into load cases?
@@ -303,10 +323,13 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.model.analysisType = self.analysis_type
         self.model.turbineType = self.turbine_type
         self.model.controlStrategy = self.control_strategy
-        self.model.AModel = self.aeroModel
+        self.model.RPM = self.RPM
+        self.model.AeroModel = self.aeroModel
         self.model.adi_lib = self.adi_lib
         self.model.adi_rootname = self.adi_rootname
         self.model.Nbld = int(self.n_blades)
+        self.model.Nslices = self.Nslices
+        self.model.ntheta = self.ntheta
 
         # This live in initialize model
         # TODO: If at any point we want to change the material parameters, we need to take this out to compute
@@ -326,6 +349,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # initialize structural model
         self.model.structuralModel = self.structuralModel
         # self.model.nonlinear = self.structuralNonlinear
+
+        # Simulation time
+        self.model.numTS = self.numTS
+        self.model.delta_t = self.delta_t
 
     # def update_model_with_yaml(self, inputs):
     # TODO: this is for updating the model using the yaml files, will be called in compute
@@ -372,37 +399,19 @@ class OWENSUnsteadySetup(ExplicitComponent):
         material_name = modopt["materials"]["mat_name"]
 
 
-        path = self.run_path
-        owensopt = modopt["OWENS"]
-        eta = owensopt["eta"]
+        path = modopt["OWENS"]["general"]["run_path"]
         number_of_blades = int(inputs["Nbld"][0])
+
+        # Below numbers should not be set separately from blade shape and tower shape (ref_axis)
         Blade_Radius = inputs["Blade_Radius"][0]
         Blade_Height = inputs["Blade_Height"][0]
         towerHeight = inputs["towerHeight"][0]
 
-        # Blade dicretization
-        blade_x = inputs["blade_ref_axis"][:,0]
- 
-        # The reference axis is usually the same between outer shape bem and internal sturctgure fem       
-        blade_y = inputs["blade_ref_axis"][:,1]
-        
-        # The reference axis is usually the same between outer shape bem and internal sturctgure fem       
-        blade_z = inputs["blade_ref_axis"][:,2]
 
         rho = inputs["rho"][0]
         Vinf = inputs["Vinf"][0]
 
         RPM = inputs["RPM"][0]
-        numTS = int(inputs["numTS"][0])
-        delta_t = inputs["delta_t"][0]
-
-        Nslices = int(inputs["NSlices"][0])
-        ntheta = int(inputs["ntheta"][0])
-
-        ntelem = int(owensopt["ntelem"])
-        nbelem = int(owensopt["nbelem"])
-        ncelem = int(owensopt["ncelem"])
-        nselem = int(owensopt["nselem"])
 
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
         # and then update the model inputs
@@ -410,14 +419,12 @@ class OWENSUnsteadySetup(ExplicitComponent):
         #   self.update_model_with_yaml(inputs):
         # else update the model directly as follows:
 
-        AModel = self.aeroModel
-        mesh_type = self.turbine_type
 
         # Assemble the ordered dictionaries for the readNumad
         # NuMad_geom_xlscsv_file_twr should contain everything under tower from the yaml inputs
 
         # ---------- blade structure --------------
-        nd_blade_grid = inputs["tower_grid"] # WEIS gives non-dimensional grid
+        nd_blade_grid = inputs["blade_structure_grid"] # WEIS gives non-dimensional grid
         blade_accum_distances = arc_length(inputs["blade_ref_axis"])
         # OWENS wants dimensional grid
         blade_grid = blade_accum_distances # it should be the same too nd_blade_grid* np.maximum(blade_accum_distances)
@@ -425,17 +432,18 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         blade_geo_dict = {}
         blade_geo_dict["outer_shape_bem"] = {}
+        blade_geo_dict["outer_shape_bem"]["blade_mountpoint"] = modopt["OWENS"]["blade"]["blade_mountpoint"]
         blade_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
-        blade_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = blade_grid_rescale # not sure how those numbers from
+        blade_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = nd_blade_grid # not sure how those numbers from
         blade_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = rotorse_options["airfoil_labels"]
         blade_geo_dict["outer_shape_bem"]["chord"] = {}
-        blade_geo_dict["outer_shape_bem"]["chord"]["grid"] = blade_grid_rescale
+        blade_geo_dict["outer_shape_bem"]["chord"]["grid"] = nd_blade_grid
         blade_geo_dict["outer_shape_bem"]["chord"]["values"] = inputs["blade_chord_values"]
         blade_geo_dict["outer_shape_bem"]["twist"] = {}
-        blade_geo_dict["outer_shape_bem"]["twist"]["grid"] = blade_grid_rescale
+        blade_geo_dict["outer_shape_bem"]["twist"]["grid"] = nd_blade_grid
         blade_geo_dict["outer_shape_bem"]["twist"]["values"] = inputs["blade_twist_values"]
         blade_geo_dict["outer_shape_bem"]["pitch_axis"] = {}
-        blade_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = blade_grid_rescale
+        blade_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = nd_blade_grid
         blade_geo_dict["outer_shape_bem"]["pitch_axis"]["values"] = inputs["blade_pitch_axis_values"]
         # put the outer shape bem here but OWENS does not use outer shape bem reference axis
         # OWENS uses that from the internal structure 2d fem
@@ -443,14 +451,14 @@ class OWENSUnsteadySetup(ExplicitComponent):
         blade_geo_dict["outer_shape_bem"]["reference_axis"]["x"] = {}
         blade_geo_dict["outer_shape_bem"]["reference_axis"]["y"] = {}
         blade_geo_dict["outer_shape_bem"]["reference_axis"]["z"] = {}
-        blade_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["grid"] = blade_grid_rescale
-        blade_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["grid"] = blade_grid_rescale
-        blade_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["grid"] = blade_grid_rescale
+        blade_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["grid"] = nd_blade_grid
+        blade_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["grid"] = nd_blade_grid
+        blade_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["grid"] = nd_blade_grid
         blade_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["values"] = inputs["blade_ref_axis"][:,0]
         blade_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["values"] = inputs["blade_ref_axis"][:,1]
         blade_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["values"] = inputs["blade_ref_axis"][:,2]
  
- # The reference axis is usually the same between outer shape bem and internal sturctgure fem       blade_geo_dict["outer_shape_bem"]["reference_axis"] = inputs["blade_ref_axis"] # Use the same as structural reference axis
+        # The reference axis is usually the same between outer shape bem and internal sturctgure fem       blade_geo_dict["outer_shape_bem"]["reference_axis"] = inputs["blade_ref_axis"] # Use the same as structural reference axis
         blade_geo_dict["internal_structure_2d_fem"] = {}
         blade_geo_dict["internal_structure_2d_fem"]["reference_axis"] = {}
         blade_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"] = {}
@@ -471,10 +479,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
             blade_i = {}
             blade_i["name"] = blade_web_names[i]
             blade_i["start_nd_arc"] = {}
-            blade_i["start_nd_arc"]["grid"] = blade_grid_rescale
+            blade_i["start_nd_arc"]["grid"] = nd_blade_grid
             blade_i["start_nd_arc"]["values"] = inputs["blade_web_start_nd_arc"][i,:]
             blade_i["end_nd_arc"] = {}
-            blade_i["end_nd_arc"]["grid"] = blade_grid_rescale
+            blade_i["end_nd_arc"]["grid"] = nd_blade_grid
             blade_i["end_nd_arc"]["values"] = inputs["blade_web_end_nd_arc"][i,:]
 
             blade_geo_dict["internal_structure_2d_fem"]["webs"].append(blade_i)
@@ -488,10 +496,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
             else:
                 blade_i["start_nd_arc"] = {}
                 blade_i["start_nd_arc"]["values"] = inputs["blade_layer_start_nd_arc"][i,:]
-                blade_i["start_nd_arc"]["grid"] = blade_grid_rescale
+                blade_i["start_nd_arc"]["grid"] = nd_blade_grid
                 blade_i["end_nd_arc"] = {}
                 blade_i["end_nd_arc"]["values"] = inputs["blade_layer_end_nd_arc"][i,:]
-                blade_i["end_nd_arc"]["grid"] = blade_grid_rescale
+                blade_i["end_nd_arc"]["grid"] = nd_blade_grid
 
             # loop to find the material ply thickness and compute the n_plies for OWENS
             for m, name in enumerate(material_name):
@@ -501,10 +509,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
             blade_i["n_plies"] = {}
             blade_i["n_plies"]["values"] = n_plies
 
-            blade_i["n_plies"]["grid"] = blade_grid_rescale
+            blade_i["n_plies"]["grid"] = nd_blade_grid
             blade_i["fiber_orientation"] = {}
             blade_i["fiber_orientation"]["values"] = inputs["blade_layer_fiber_orientation"][i,:]
-            blade_i["fiber_orientation"]["grid"] = blade_grid_rescale
+            blade_i["fiber_orientation"]["grid"] = nd_blade_grid
 
             blade_geo_dict["internal_structure_2d_fem"]["layers"].append(blade_i)
 
@@ -520,24 +528,24 @@ class OWENSUnsteadySetup(ExplicitComponent):
         tower_geo_dict = {}
         tower_geo_dict["outer_shape_bem"] = {}
         tower_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
-        tower_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = tower_grid
+        tower_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = nd_tower_grid
         tower_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = n_height_tower *["Circular"]
         tower_geo_dict["outer_shape_bem"]["chord"] = {}
-        tower_geo_dict["outer_shape_bem"]["chord"]["grid"] = tower_grid
+        tower_geo_dict["outer_shape_bem"]["chord"]["grid"] = nd_tower_grid
         tower_geo_dict["outer_shape_bem"]["chord"]["values"] = tower_diameter
         tower_geo_dict["outer_shape_bem"]["twist"] = {}
-        tower_geo_dict["outer_shape_bem"]["twist"]["grid"] = tower_grid
+        tower_geo_dict["outer_shape_bem"]["twist"]["grid"] = nd_tower_grid
         tower_geo_dict["outer_shape_bem"]["twist"]["values"] = np.zeros(len(nd_tower_grid))
         tower_geo_dict["outer_shape_bem"]["pitch_axis"] = {}
-        tower_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = tower_grid
+        tower_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = nd_tower_grid
         tower_geo_dict["outer_shape_bem"]["pitch_axis"]["values"] = 0.5*np.ones(len(nd_tower_grid))
         tower_geo_dict["outer_shape_bem"]["reference_axis"] = {}
         tower_geo_dict["outer_shape_bem"]["reference_axis"]["x"] = {}
         tower_geo_dict["outer_shape_bem"]["reference_axis"]["y"] = {}
         tower_geo_dict["outer_shape_bem"]["reference_axis"]["z"] = {}
-        tower_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["grid"] = tower_grid
-        tower_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["grid"] = tower_grid
-        tower_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["grid"] = tower_grid
+        tower_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["grid"] = nd_tower_grid
+        tower_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["grid"] = nd_tower_grid
+        tower_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["grid"] = nd_tower_grid
         tower_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["values"] = inputs["tower_ref_axis"][:,0]
         tower_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["values"] = inputs["tower_ref_axis"][:,1]
         tower_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["values"] = inputs["tower_ref_axis"][:,2]
@@ -547,9 +555,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"] = {}
         tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"] = {}
         tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"] = {}
-        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"]["grid"] = tower_grid
-        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"]["grid"] = tower_grid
-        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"]["grid"] = tower_grid
+        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"]["grid"] = nd_tower_grid
+        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"]["grid"] = nd_tower_grid
+        tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"]["grid"] = nd_tower_grid
         tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"]["values"] = inputs["tower_ref_axis"][:,0]
         tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"]["values"] = inputs["tower_ref_axis"][:,1]
         tower_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"]["values"] = inputs["tower_ref_axis"][:,2]# Not needed in readNuMad
@@ -570,10 +578,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
             tower_i["material"] = tower_layer_materials[i]
             tower_i["start_nd_arc"] = {}
             tower_i["start_nd_arc"]["values"] = np.zeros(n_height_tower)
-            tower_i["start_nd_arc"]["grid"] = tower_grid
+            tower_i["start_nd_arc"]["grid"] = nd_tower_grid
             tower_i["end_nd_arc"] = {}
             tower_i["end_nd_arc"]["values"] = np.ones(n_height_tower)
-            tower_i["end_nd_arc"]["grid"] = tower_grid
+            tower_i["end_nd_arc"]["grid"] = nd_tower_grid
 
             # loop to find the material ply thickness and compute the n_plies for OWENS
             for m, name in enumerate(material_name):
@@ -583,10 +591,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
             tower_i["n_plies"] = {}
             tower_i["n_plies"]["values"] = n_plies
-            tower_i["n_plies"]["grid"] = tower_grid
+            tower_i["n_plies"]["grid"] = nd_tower_grid
             tower_i["fiber_orientation"] = {}
             tower_i["fiber_orientation"]["values"] = np.zeros(n_height_tower)
-            tower_i["fiber_orientation"]["grid"] = tower_grid
+            tower_i["fiber_orientation"]["grid"] = nd_tower_grid
 
             tower_geo_dict["internal_structure_2d_fem"]["layers"].append(tower_i)
 
@@ -600,28 +608,31 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
     
         strut_geo_dict = {}
+        strut_geo_dict["mountfraction_blade"] = {}
+        strut_geo_dict["mountfraction_blade"] = strut_options["mountfraction_blade"]
+        strut_geo_dict["mountfraction_tower"] = strut_options["mountfraction_tower"]
         strut_geo_dict["outer_shape_bem"] = {}
         strut_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
         # strut grid in OWENS yaml is dimensional but it doesn't matter
         # the strut dimension is determined by the strut mountpoint to tower and blade
-        strut_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = strut_grid_rescale
+        strut_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = nd_strut_grid
         strut_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = strut_options["airfoils"]
         strut_geo_dict["outer_shape_bem"]["chord"] = {}
-        strut_geo_dict["outer_shape_bem"]["chord"]["grid"] = strut_grid_rescale
+        strut_geo_dict["outer_shape_bem"]["chord"]["grid"] = nd_strut_grid
         strut_geo_dict["outer_shape_bem"]["chord"]["values"] = inputs["strut_chord"]
         strut_geo_dict["outer_shape_bem"]["twist"] = {}
-        strut_geo_dict["outer_shape_bem"]["twist"]["grid"] = strut_grid_rescale
+        strut_geo_dict["outer_shape_bem"]["twist"]["grid"] = nd_strut_grid
         strut_geo_dict["outer_shape_bem"]["twist"]["values"] = inputs["strut_twist"]
         strut_geo_dict["outer_shape_bem"]["pitch_axis"] = {}
-        strut_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = strut_grid_rescale
+        strut_geo_dict["outer_shape_bem"]["pitch_axis"]["grid"] = nd_strut_grid
         strut_geo_dict["outer_shape_bem"]["pitch_axis"]["values"] = inputs["strut_pitch_axis"]
         strut_geo_dict["outer_shape_bem"]["reference_axis"] = {}
         strut_geo_dict["outer_shape_bem"]["reference_axis"]["x"] = {}
         strut_geo_dict["outer_shape_bem"]["reference_axis"]["y"] = {}
         strut_geo_dict["outer_shape_bem"]["reference_axis"]["z"] = {}
-        strut_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["grid"] = strut_grid_rescale
-        strut_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["grid"] = strut_grid_rescale
-        strut_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["grid"] = strut_grid_rescale
+        strut_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["grid"] = nd_strut_grid
+        strut_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["grid"] = nd_strut_grid
+        strut_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["grid"] = nd_strut_grid
         strut_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["values"] = inputs["strut_ref_axis"][:,0]
         strut_geo_dict["outer_shape_bem"]["reference_axis"]["y"]["values"] = inputs["strut_ref_axis"][:,1]
         strut_geo_dict["outer_shape_bem"]["reference_axis"]["z"]["values"] = inputs["strut_ref_axis"][:,2]
@@ -633,9 +644,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"] = {}
         strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"] = {}
         strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"] = {}
-        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"]["grid"] = strut_grid_rescale
-        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"]["grid"] = strut_grid_rescale
-        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"]["grid"] = strut_grid_rescale
+        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"]["grid"] = nd_strut_grid
+        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"]["grid"] = nd_strut_grid
+        strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"]["grid"] = nd_strut_grid
         strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["x"]["values"] = inputs["strut_ref_axis"][:,0]
         strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["y"]["values"] = inputs["strut_ref_axis"][:,1]
         strut_geo_dict["internal_structure_2d_fem"]["reference_axis"]["z"]["values"] = inputs["strut_ref_axis"][:,2]
@@ -657,10 +668,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
             strut_i["name"] = strut_web_names[i]
             strut_i["start_nd_arc"] = {}
-            strut_i["start_nd_arc"]["grid"] = strut_grid_rescale
+            strut_i["start_nd_arc"]["grid"] = nd_strut_grid
             strut_i["start_nd_arc"]["values"] = inputs["strut_web_start_nd_arc"][i,:]
             strut_i["end_nd_arc"] = {}
-            strut_i["end_nd_arc"]["grid"] = strut_grid_rescale
+            strut_i["end_nd_arc"]["grid"] = nd_strut_grid
             strut_i["end_nd_arc"]["values"] = inputs["strut_web_end_nd_arc"][i,:]
             strut_geo_dict["internal_structure_2d_fem"]["webs"].append(strut_i)
 
@@ -673,10 +684,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
             strut_i["material"] = strut_layer_materials[i]
             strut_i["start_nd_arc"] = {}
             strut_i["start_nd_arc"]["values"] = inputs["strut_layer_start_nd_arc"][i,:]
-            strut_i["start_nd_arc"]["grid"] = strut_grid_rescale
+            strut_i["start_nd_arc"]["grid"] = nd_strut_grid
             strut_i["end_nd_arc"] = {}
             strut_i["end_nd_arc"]["values"] = inputs["strut_layer_end_nd_arc"][i,:]
-            strut_i["end_nd_arc"]["grid"] = strut_grid_rescale
+            strut_i["end_nd_arc"]["grid"] = nd_strut_grid
             # strut_i["n_plies"]["values"] = inputs["strut_layer_nplies"]
             # loop to find the material ply thickness and compute the n_plies for OWENS
             for m, name in enumerate(material_name):
@@ -684,10 +695,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
                     n_plies = inputs["strut_layer_thickness"][i,:]/inputs["ply_t"][m]
             strut_i["n_plies"] = {}
             strut_i["n_plies"]["values"] = n_plies
-            strut_i["n_plies"]["grid"] = strut_grid_rescale
+            strut_i["n_plies"]["grid"] = nd_strut_grid
             strut_i["fiber_orientation"] = {}
             strut_i["fiber_orientation"]["values"] = inputs["strut_layer_fiber_orientation"][i,:]
-            strut_i["fiber_orientation"]["grid"] = strut_grid_rescale
+            strut_i["fiber_orientation"]["grid"] = nd_strut_grid
             strut_geo_dict["internal_structure_2d_fem"]["layers"].append(strut_i)
 
         # materials dict
@@ -730,7 +741,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # jl_ordered_dict = convert(jl.OrderedDict, yaml_dict)
         FileTools.save_yaml(outdir="/Users/yliao/repos/WEIS/examples/18_owens", fname="data.yml", data_out=yaml_dict)
 
-        jl.OWENS.runOWENSWINDIO("/Users/yliao/repos/WEIS/examples/18_owens/data.yml",self.model,path,verbosity=2)
+
+        jl.OWENS.runOWENSWINDIO("./OWENS_Opt.yml", "/Users/yliao/repos/WEIS/examples/18_owens/data.yml",path)
 
         # setup_outputs = jl.OWENS.setupOWENS(jl.OWENSAero, path, 
         #                                     rho=rho,
@@ -945,6 +957,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "massOwens", "topDamage_blade_U", "SF_ult_U"])
         massOwens = output_h5["massOwens"]
         FReactionHist = output_h5["FReactionHist"]
+        # print("shape of FReactionHist: ", FReactionHist.shape)
         topDamage_blade_U = output_h5["topDamage_blade_U"]
         SF_ult_U= output_h5["SF_ult_U"]
         t = output_h5["t"]
@@ -965,6 +978,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # # Other outputs for constraints
         outputs["SF"] = minSF
         outputs["fatigue_damage"] = maxFatiguePer20yr # - 1.0
+        print("power: ", outputs["power"])
         print("fatigue damage: ", outputs["fatigue_damage"])
         # # power constraint can be imposed elsewhere
         # # since it is already an output

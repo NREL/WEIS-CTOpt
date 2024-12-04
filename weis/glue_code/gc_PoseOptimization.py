@@ -1,5 +1,6 @@
 from wisdem.glue_code.gc_PoseOptimization import PoseOptimization
 import numpy as np
+from scipy.interpolate import PchipInterpolator
 
 class PoseOptimizationWEIS(PoseOptimization):
 
@@ -113,6 +114,9 @@ class PoseOptimizationWEIS(PoseOptimization):
         
         elif self.opt['merit_figure'] == 'OL2CL_pitch':
             wt_opt.model.add_objective('aeroelastic.OL2CL_pitch')
+
+        elif self.opt['merit_figure'] == 'vawt_pseudolcoe':
+            wt_opt.model.add_objective('owens.lcoe')
         
         else:
             super(PoseOptimizationWEIS, self).set_objective(wt_opt)
@@ -215,6 +219,30 @@ class PoseOptimizationWEIS(PoseOptimization):
                         lower=tmd_group['damping_ratio']['lower_bound'],
                         upper=tmd_group['damping_ratio']['upper_bound']
                         )
+        
+        # OWENS radius
+        rotor_radius_vawt_opt = self.opt["design_variables"]["blade"]["aero_shape"]["rotor_radius_vawt"]
+        if rotor_radius_vawt_opt["flag"]:
+            if rotor_radius_vawt_opt["index_end"] > rotor_radius_vawt_opt["n_opt"]:
+                raise Exception(
+                    "Check the analysis options yaml, index_end of the blade radius is higher than the number of DVs n_opt"
+                )
+            elif rotor_radius_vawt_opt["index_end"] == 0:
+                rotor_radius_vawt_opt["index_end"] = rotor_radius_vawt_opt["n_opt"]
+            indices_radius = range(rotor_radius_vawt_opt["index_start"], rotor_radius_vawt_opt["index_end"])
+            s_opt_radius = np.linspace(0.0, 1.0, rotor_radius_vawt_opt["n_opt"])
+            radius_interpolator = PchipInterpolator(
+                wt_init["components"]["blade"]["outer_shape_bem"]["reference_axis"]["x"]["grid"],
+                wt_init["components"]["blade"]["outer_shape_bem"]["reference_axis"]["x"]["values"],
+            )
+            init_radius_opt = radius_interpolator(s_opt_radius)
+            wt_opt.model.add_design_var(
+                "blade.opt_var.rotor_radius_vawt",
+                indices=indices_radius,
+                lower=init_radius_opt[indices_radius] * rotor_radius_vawt_opt["max_decrease"],
+                upper=init_radius_opt[indices_radius] * rotor_radius_vawt_opt["max_increase"],
+            )
+            
         
         return wt_opt
 
@@ -395,6 +423,15 @@ class PoseOptimizationWEIS(PoseOptimization):
                 tower_base_damage_max = np.log(tower_base_damage_max)
 
             wt_opt.model.add_constraint('aeroelastic.damage_tower_base',upper = tower_base_damage_max)
+
+        # vawt owens constraints
+        owens_constr = self.opt["constraints"]["owens"]
+        if owens_constr["SF"]["flag"]:
+            wt_opt.model.add_constraint("owens.SF", lower=self.opt["constraints"]["owens"]["SF"]["lower_bound"])
+        if owens_constr["fatigue"]["flag"]:
+            wt_opt.model.add_constraint("owens.fatigue_damage", upper=1.0)
+        if owens_constr["power"]["flag"]:
+            wt_opt.model.add_constraint("owens.power", lower=0.0)
 
         return wt_opt
 
