@@ -19,6 +19,7 @@ Using WEIS
 
    installation
    how_weis_works
+   inputs/yaml_inputs
    
 
 WEIS Visualization APP
@@ -28,6 +29,15 @@ WEIS Visualization APP
    :maxdepth: 2
 
    how_weis_viz_works
+
+
+Optimization in WEIS
+====================
+
+.. toctree::
+   :maxdepth: 2
+
+   optimization
 
 
 Other Useful Docs
