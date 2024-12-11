@@ -392,8 +392,23 @@ class RAFT_WEIS_Prep(om.ExplicitComponent):
                              str(waveStr),
                              float(max(1.0, icase.wave_period)),
                              float(max(1.0, icase.wave_height)),
-                             float(icase.wave_heading)]
+                             float(icase.wave_heading),
+                             float(icase.current),
+                             float(icase.wind_heading),  # TODO: redo this with new dlc_generator
+                             float(icase.IECturbc)/ 100,  # TODO: check for RAFT TI
+                             ]
         raft_opt['raft_dlcs'] = raft_cases
-        raft_opt['raft_dlcs_keys'] = ['wind_speed', 'wind_heading', 'turbulence',
-                                              'turbine_status', 'yaw_misalign', 'wave_spectrum',
-                                              'wave_period', 'wave_height', 'wave_heading']
+        raft_opt['raft_dlcs_keys'] = [
+            'wind_speed',
+            'wind_heading',
+            'turbulence',
+            'turbine_status',
+            'yaw_misalign',
+            'wave_spectrum',
+            'wave_period',
+            'wave_height',
+            'wave_heading',
+            'current_speed',
+            'current_heading',
+            'current_turbulence',
+            ]

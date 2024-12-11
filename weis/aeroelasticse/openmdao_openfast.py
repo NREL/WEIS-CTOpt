@@ -1401,6 +1401,7 @@ class FASTLoadCases(ExplicitComponent):
                 
             elif modopt['flags']['floating']:
                 joints_xyz = np.empty((0, 3))
+                axial_coeffs = np.empty((0, 3))
                 N1 = np.array([], dtype=np.int_)
                 N2 = np.array([], dtype=np.int_)
                 d_coarse = np.array([])
