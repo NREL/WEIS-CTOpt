@@ -19,7 +19,7 @@ fname_analysis_options = mydir + os.sep + "analysis_options_owens_DVs.yaml"
 
 analysis_override = {}
 analysis_override['general'] = {}
-analysis_override['general']['folder_output'] = os.path.join('outputs/18_OWENS_OptStudies/1_change_opt_chord_radius/',"slsqp")
+analysis_override['general']['folder_output'] = os.path.join('outputs/18_OWENS_OptStudies/Opt_chord_radius_TSR/',"slsqp")
 analysis_override['driver'] = {}
 analysis_override['driver']['optimization'] = {}
 analysis_override['driver']['optimization']['solver'] = "SLSQP"
@@ -38,6 +38,7 @@ else:
     rank = 0
 if rank == 0:
     # shutil.copyfile(os.path.join(analysis_options['general']['folder_output'],analysis_options['general']['fname_output']+'.yaml'), fname_wt_input)
-    print("Tower mass (kg) =", wt_opt["towerse.tower_mass"])
+    print("Mass (kg) =", wt_opt["owens.mass"])
+    print("Power =", wt_opt["owens.power"])
     # print("Floating platform mass (kg) =", wt_opt["floatingse.platform_mass"])
 

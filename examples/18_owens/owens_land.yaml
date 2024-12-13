@@ -755,7 +755,7 @@ materials:
 control: # This has to be here for connection to work. Copied from IEA22
     supervisory: {Vin: 0.5, Vout: 4.0, maxTS: 60}
     pitch: {PC_zeta: !!null '', PC_omega: !!null '', ps_percent: !!null '', max_pitch: !!null '', max_pitch_rate: 0.1745, min_pitch: 0.00088}
-    torque: {control_type: !!null '', tsr: 7.64, VS_zeta: !!null '', VS_omega: !!null '', max_torque_rate: 1500000.0, VS_minspd: 0.0, VS_maxspd: 1.26711}
+    torque: {control_type: tsr_tracking, tsr: 5.6, VS_zeta: !!null '', VS_omega: !!null '', max_torque_rate: 1500000.0, VS_minspd: 0.0, VS_maxspd: 1.26711}
     setpoint_smooth: {ss_vsgain: !!null '', ss_pcgain: !!null ''}
     shutdown: {limit_type: !!null '', limit_value: !!null ''}
 environment: {air_density: 1.225, air_dyn_viscosity: 1.7894e-5, air_speed_sound: 350.0, shear_exp: 0.0, gravity: 9.80665, weib_shape_parameter: 2.0, water_density: 1025.0, water_dyn_viscosity: 0.0013351, soil_shear_modulus: 140000000.0, soil_poisson: 0.4, water_depth: 50.0, air_pressure: 101325.0, air_vapor_pressure: 2500.0, significant_wave_height: 1.0, significant_wave_period: 5.0}

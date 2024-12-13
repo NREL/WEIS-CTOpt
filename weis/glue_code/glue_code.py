@@ -1016,6 +1016,10 @@ class WindPark(om.Group):
             self.connect("materials.wohler_intercept", "owens.wohler_A_mat")
             self.connect("materials.ply_t_from_yaml", "owens.ply_t")
 
+            # control tsr
+            if modeling_options["OWENS"]["general"]["controlStrategy"] == "tsrTracking":
+                self.connect("control.rated_TSR", "owens.tsr")
+
 
             
                 

@@ -168,8 +168,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Solver options (come from modeling options)
         
         # Control inputs
-        if self.owens_modeling_options["OWENS_Options"]["controlStrategy"] == "prescribedRPM":
-            self.add_input("RPM", val=15.0, desc="RPM")
+        if self.owens_modeling_options["OWENS_Options"]["controlStrategy"] == "tsrTracking":
+            self.add_input("tsr", val=15.0, desc="TSR")
 
         # Environmental conditions
         # Maybe this fits better into load cases?
@@ -363,10 +363,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
     def setup_partials(self):
         # This can be set analytically from julia AD
-        self.declare_partials("power", "*", method="fd")
-        self.declare_partials("lcoe", "*", method="fd")
-        self.declare_partials("SF", "*", method="fd")
-        self.declare_partials("fatigue_damage", "*", method="fd")
+        self.declare_partials("power", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("lcoe", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("SF", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("fatigue_damage", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
 
     def compute(self, inputs, outputs):
         modopt = self.options["modeling_options"]
@@ -411,7 +411,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
         rho = inputs["rho"][0]
         Vinf = inputs["Vinf"][0]
 
-        RPM = inputs["RPM"][0]
 
         # TODO: depending on the owens_yaml option, we can either update the model options directly, or write the intermediate yaml
         # and then update the model inputs
@@ -741,6 +740,16 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # jl_ordered_dict = convert(jl.OrderedDict, yaml_dict)
         FileTools.save_yaml(outdir="/Users/yliao/repos/WEIS/examples/18_owens", fname="data.yml", data_out=yaml_dict)
 
+        # Update RPM path based on the TSR input
+        print("controlStrategy is: ", self.owens_modeling_options["OWENS_Options"]["controlStrategy"])
+        if modopt["OWENS"]["general"]["controlStrategy"] == "tsrTracking":
+            TSR = inputs["tsr"][0]
+            Blade_Radius = np.max(blade_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["values"])
+            self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"] = np.array(modopt["OWENS"]["general"]["Prescribed_Vinf_Vinf_controlpoints"])*TSR*30/np.pi/Blade_Radius
+            self.owens_modeling_options["OWENS_Options"]["controlStrategy"] = "prescribedRPM" # still use prescribedRPM for OWENS
+            self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"]
+            FileTools.save_yaml(outdir="./", fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
+
 
         jl.OWENS.runOWENSWINDIO("./OWENS_Opt.yml", "/Users/yliao/repos/WEIS/examples/18_owens/data.yml",path)
 
@@ -954,8 +963,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # Parse outputs using h5 files
         output_path = os.path.join(path, "InitialDataOutputs.h5")
-        output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "massOwens", "topDamage_blade_U", "SF_ult_U"])
+        output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "SF_ult_U"])
         massOwens = output_h5["massOwens"]
+        omegaHist = output_h5["OmegaHist"]
         FReactionHist = output_h5["FReactionHist"]
         # print("shape of FReactionHist: ", FReactionHist.shape)
         topDamage_blade_U = output_h5["topDamage_blade_U"]
@@ -966,7 +976,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens"
         # print("-FReactionHist[:,5]: ", -FReactionHist[:,5])
         outputs["mass"] = massOwens
-        outputs["power"] = np.mean(-FReactionHist[:,5])*(RPM*2*np.pi/60)
+        outputs["power"] = np.mean(FReactionHist[:,5]*omegaHist)
         outputs["lcoe"] = massOwens/outputs["power"]
 
 

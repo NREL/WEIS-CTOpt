@@ -80,22 +80,6 @@ properties:
                 type: boolean
                 default: False
                 description: Flag whether to apply the Goodman correction for mean stress value to the stress amplitude value in fatigue calculations
-            owens_configuration:
-                type: object
-                default: {}
-                properties:
-                    owens_path:
-                        type: string
-                        default: none
-                        desciption: Path to owens project
-                    master_input:
-                        type: string
-                        default: none
-                        description: Path to the sample yaml file for initialization
-                    adi_lib:
-                        type: string
-                        default: none
-                        description: Path to the aerodyn interface library, "nothing" if you are using the one that is automatically built with OWENSOpenFASTWrappers.jl
 
     WISDEM:
         type: object

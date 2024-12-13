@@ -7,6 +7,9 @@ design_variables:
     aero_shape:
       chord:
         flag: True
+        n_opt: 5
+        index_start: 0
+        index_end: 5
         # max: 20.0
       rotor_radius_vawt:
         flag: True
@@ -14,6 +17,12 @@ design_variables:
         index_start: 1
         index_end: 6
         # max: 20.0
+  control:
+    tsr:
+      flag: True
+      minimum: 1.0
+      maximum: 10.0
+
 
 
 merit_figure: vawt_pseudolcoe
@@ -37,7 +46,7 @@ driver:
         # max_minor_iter: 100 # Maximum number of minor design iterations (SNOPT)
         max_iter: 200         # Maximum number of iterations (SLSQP)
         solver: SLSQP       # Optimization solver. Other options are 'SLSQP' - 'CONMIN'
-        step_size: 1.e-4    # Step size for finite differencing
+        step_size: 1e-4    # Step size for finite differencing
         form: forward       # Finite differencing mode, either forward or central
         setp_calc: rel_avg
     # design_of_experiments:
