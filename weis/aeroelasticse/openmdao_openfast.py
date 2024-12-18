@@ -2758,8 +2758,10 @@ class FASTLoadCases(ExplicitComponent):
         outputs['max_nac_accel'] = sum_stats['NcIMUTA']['max'].max()
 
         # Max pitch rate
-        max_pitch_rates = np.r_[sum_stats['dBldPitch1']['max'],sum_stats['dBldPitch2']['max'],sum_stats['dBldPitch3']['max']]
-        outputs['max_pitch_rate_sim'] = max(max_pitch_rates)  / np.rad2deg(self.fst_vt['DISCON_in']['PC_MaxRat'])        # normalize by ROSCO pitch rate
+        max_pitch_rates = []
+        for i_blade in range(self.fst_vt['ElastoDyn']['NumBl']):
+            max_pitch_rates.append(sum_stats[f'dBldPitch{i_blade+1}']['max'])
+        outputs['max_pitch_rate_sim'] = max(np.array(max_pitch_rates).flatten())  / np.rad2deg(self.fst_vt['DISCON_in']['PC_MaxRat'])        # normalize by ROSCO pitch rate
 
         # pitch travel and duty cycle
         if self.options['modeling_options']['General']['openfast_configuration']['keep_time']:
