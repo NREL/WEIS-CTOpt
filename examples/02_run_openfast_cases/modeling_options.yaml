@@ -41,7 +41,7 @@ DLC_driver:
           n_seeds: 1
           analysis_time: 10.
           transient_time: 0.1
-          turbulent_wind:
+          turbsim_inputs:
               HubHt: 142
               RefHt: 142
               GridHeight: 275
@@ -50,7 +50,7 @@ DLC_driver:
           analysis_time: 10.
           transient_time: 0.1
           wind_speed: [46.789]
-          turbulent_wind:
+          turbsim_inputs:
               HubHt: 142
               RefHt: 142
               GridHeight: 275

@@ -115,7 +115,7 @@ DLC_driver:
           n_seeds: 1
           analysis_time: 1.0
           transient_time: 1.0
-          turbulent_wind:
+          turbsim_inputs:
               HubHt: 140
               GridHeight: 220
               GridWidth: 220

@@ -83,7 +83,7 @@ DLC_driver:
         - DLC: "1.6"
           analysis_time: 600.
           transient_time: 120.
-        #   turbulent_wind:
+        #   turbsim_inputs:
         #       HubHt: 160
         #       GridHeight: 300
         #       GridWidth: 300

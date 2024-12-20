@@ -34,7 +34,7 @@ An example (a subset of a modeling input) is shown next::
           #  analysis_time: 5.
           #  transient_time: 5.
           #  wind_speed: [3., 5., 7., 9., 11., 13., 15., 17., 19., 21., 23., 25.]
-          turbulent_wind:
+          turbsim_inputs:
               HubHt: 110
               GridHeight: 160
               GridWidth: 160
@@ -43,7 +43,7 @@ The ``metocean_conditions`` are defined using tables of ``wind_speed``, ``wave_h
 Individual DLCs use these conditions to determine specific sea conditions for each case, but they can also be overwritten in each case.
 
 Users can specify the wind speed bin size (``ws_bin_size``) or the specific wind speeds (``wind_speed``).
-The number of seeds (``n_seed``) and specifics about the turbsim inputs (link?, ``turbulent_wind``) can also be specified.
+The number of seeds (``n_seed``) and specifics about the turbsim inputs (link?, ``turbsim_inputs``) can also be specified.
 ``transient_time`` is excluded from timeseries analysis; only ``analysis_time`` is used.
 A complete listing of the DLC options can be found here `DLC options`_ below.
 
@@ -93,7 +93,7 @@ These outputs can be used as inputs for future runs to exactly reproduce specifi
           analysis_time: 600.0
           transient_time: 120.0
           shutdown_time: 9999
-          turbulent_wind: {flag: false, Echo: false, RandSeed1: 1, RandSeed2: RANLUX, WrBHHTP: false, WrFHHTP: false, WrADHH: false, WrADFF: true, WrBLFF: false, WrADTWR: false, WrFMTFF: false, WrACT: false, Clockwise: false, ScaleIEC: 0, NumGrid_Z: 25, NumGrid_Y: 25, TimeStep: 0.05, UsableTime: ALL, HubHt: 0, GridHeight: 0, GridWidth: 0, VFlowAng: 0.0, HFlowAng: 0.0, TurbModel: IECKAI, UserFile: unused, IECstandard: 1-ED3, ETMc: default, WindProfileType: PL, ProfileFile: unused, RefHt: 0, URef: -1, IECturbc: -1, ZJetMax: default, PLExp: -1, Z0: default, Latitude: default, RICH_NO: 0.05, UStar: default, ZI: default, PC_UW: default, PC_UV: default, PC_VW: default, SCMod1: default, SCMod2: default, SCMod3: default, InCDec1: default, InCDec2: default, InCDec3: default, CohExp: default, CTEventPath: unused, CTEventFile: RANDOM, Randomize: true, DistScl: 1.0, CTLy: 0.5, CTLz: 0.5, CTStartTime: 30}
+          turbsim_inputs: {flag: false, Echo: false, RandSeed1: 1, RandSeed2: RANLUX, WrBHHTP: false, WrFHHTP: false, WrADHH: false, WrADFF: true, WrBLFF: false, WrADTWR: false, WrFMTFF: false, WrACT: false, Clockwise: false, ScaleIEC: 0, NumGrid_Z: 25, NumGrid_Y: 25, TimeStep: 0.05, UsableTime: ALL, HubHt: 0, GridHeight: 0, GridWidth: 0, VFlowAng: 0.0, HFlowAng: 0.0, TurbModel: IECKAI, UserFile: unused, IECstandard: 1-ED3, ETMc: default, WindProfileType: PL, ProfileFile: unused, RefHt: 0, URef: -1, IECturbc: -1, ZJetMax: default, PLExp: -1, Z0: default, Latitude: default, RICH_NO: 0.05, UStar: default, ZI: default, PC_UW: default, PC_UV: default, PC_VW: default, SCMod1: default, SCMod2: default, SCMod3: default, InCDec1: default, InCDec2: default, InCDec3: default, CohExp: default, CTEventPath: unused, CTEventFile: RANDOM, Randomize: true, DistScl: 1.0, CTLy: 0.5, CTLz: 0.5, CTStartTime: 30}
           wake_mod: 1
           wave_model: 2
           label: '1.1'

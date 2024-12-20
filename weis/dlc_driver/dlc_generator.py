@@ -37,13 +37,14 @@ class DLCInstance(object):
         self.wind_file = ''
         self.PSF = 1.35 # Partial Safety Factor
         self.azimuth_init = 0.0
+        self.marine_turbine = False
 
         if not options is None:
             self.default_turbsim_props(options)
 
     def default_turbsim_props(self, options):
-        for key in options['turbulent_wind'].keys():
-            setattr(self, key, options['turbulent_wind'][key])
+        for key in options['turbsim_inputs'].keys():
+            setattr(self, key, options['turbsim_inputs'][key])
 
 class DLCGenerator(object):
 

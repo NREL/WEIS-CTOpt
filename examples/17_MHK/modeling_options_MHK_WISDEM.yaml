@@ -188,7 +188,7 @@ DLC_driver:
         - DLC: "1.1"        # Eagle, full
         #   n_seeds: 1
           transient_time: 0.
-        #   current_speed: [1.5]
+          current_speed: [1.0,2.0]
           analysis_time: 1.
           ws_bin_size: 0.25
           turbsim_inputs:
@@ -200,7 +200,7 @@ DLC_driver:
         #   current_speed: [0.75]
         #   analysis_time: 1.
         #   ws_bin_size: 0.25
-        #   turbulent_wind:
+        #   turbsim_inputs:
         #     PLExp: 0
         #     TurbModel: TIDAL
         # - DLC: "12.1"

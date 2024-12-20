@@ -123,7 +123,7 @@ DLC_driver:
           n_seeds: 1
           analysis_time: 5.
           transient_time: 5.
-          turbulent_wind:
+          turbsim_inputs:
               HubHt: 150.0
               Clockwise: True
               RefHt: 150.0

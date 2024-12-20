@@ -3255,7 +3255,7 @@ properties:
                             type: string
                             enum: ['A+','A','B','C']
                             description: The class of turbulence, will overwrite class defined in geometry options. Only valid in the AEP DLC.
-                        turbulent_wind:
+                        turbsim_inputs:
                             type: object
                             default: {}
                             description: These are all inputs to TurbSim. These inputs usually do not need to be set unless you are trying to customize a DLC

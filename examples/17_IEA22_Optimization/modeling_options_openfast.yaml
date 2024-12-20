@@ -145,6 +145,6 @@ DLC_driver:
         #   analysis_time: 600.0  # 10.
         # - DLC: "6.1"
         #   n_seeds: 6
-        #   turbulent_wind:
+        #   turbsim_inputs:
         #     # GridHeight: 400
         #     GridWidth: 400
