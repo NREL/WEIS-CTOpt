@@ -172,14 +172,14 @@ class PoseOptimizationWEIS(PoseOptimization):
         # Count and add design variables from WEIS
         if self.opt['design_variables']['control']['servo']['pitch_control']['omega']['flag']:
             if hasattr(self.modeling['ROSCO']['omega_pc'],'__len__'):
-                n_add += len(self.modeling['ROSCO']['omega_pc'])
+                n_DV += len(self.modeling['ROSCO']['omega_pc'])
             else:
-                n_add += 1
+                n_DV += 1
         if self.opt['design_variables']['control']['servo']['pitch_control']['zeta']['flag']:
             if hasattr(self.modeling['ROSCO']['zeta_pc'],'__len__'):
-                n_add += len(self.modeling['ROSCO']['zeta_pc'])
+                n_DV += len(self.modeling['ROSCO']['zeta_pc'])
             else:
-                n_add += 1
+                n_DV += 1
         if self.opt['design_variables']['control']['servo']['pitch_control']['Kp_float']['flag']:
             n_DV += 1
         if self.opt['design_variables']['control']['servo']['pitch_control']['ptfm_freq']['flag']:
