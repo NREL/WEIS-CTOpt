@@ -3153,6 +3153,9 @@ properties:
             Mesh_Options:
                 type: object
                 default: {}
+                optional:
+                    - c_mount_ratio
+                    - cables_connected_to_blade_base
                 properties:
                     ntelem: 
                         type: integer

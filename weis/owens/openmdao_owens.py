@@ -70,6 +70,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         strut_options = self.options["strut_options"]
         OWENS_path = modopt["OWENS"]["general"]["OWENS_project_path"]
 
+        # set up an counter
+        self.counter = 0
+
 
         jlPkg.activate(OWENS_path)
         jl.seval("using OWENS")
@@ -159,6 +162,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_input("Blade_Height", val=110.1829092)
         self.add_input("towerHeight", val=3.0) # Towerheight is a modeling option in OWENS example, but I think it makes sense to be a input so that it can potentially be a dv
 
+        # Configuration inputs
+        self.add_input("hub_height", val=0.0) # Hub height
+
 
         # Blade inputs for composites
         # self.add_input('structuralModel', val='GX', desc="Structural models, GX, TNB, or ROM")
@@ -169,7 +175,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         
         # Control inputs
         if self.owens_modeling_options["OWENS_Options"]["controlStrategy"] == "tsrTracking":
-            self.add_input("tsr", val=15.0, desc="TSR")
+            self.add_input("tsr", val=5.0, desc="TSR")
 
         # Environmental conditions
         # Maybe this fits better into load cases?
@@ -245,10 +251,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_input('Xt',           val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Ultimate Tensile Strength (UTS) of the materials. Each row represents a material, the three columns represent Xt12, Xt13 and Xt23.')
         self.add_input('Xc',           val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Ultimate Compressive Strength (UCS) of the materials. Each row represents a material, the three columns represent Xc12, Xc13 and Xc23.')
         self.add_input('S',           val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Ultimate Shear Strength (USS) of the materials. Each row represents a material, the three columns represent S12, S13 and S23.')
-        self.add_input('wohler_m_mat',            val=np.array([[0.0,1.0,2.0,4.0,6.0,20.0]]),                desc='2D array of the S-N fatigue slope exponent for the materials')
+        self.add_input('wohler_m_mat',            val=np.zeros(n_mat),                desc='2D array of the S-N fatigue slope exponent for the materials')
         self.add_input('ply_t',            val=np.zeros(n_mat), units="m", desc='1D array of the ply thicknesses of the materials. Non-composite materials are kept at 0.')
         self.add_input('unit_cost',            val=np.zeros(n_mat), units="USD/kg", desc='1D array of the unit costs of the materials.')
-        self.add_input('wohler_A_mat',            val=np.array([420.0,415.0,375.0,275.0,190.0,0.0]), desc='1D array of the wohler intercept of the materials.')
+        self.add_input('wohler_A_mat',            val=np.zeros(n_mat), desc='1D array of the wohler intercept of the materials.')
 
 
         # Ignore openfast parts for now
@@ -434,7 +440,11 @@ class OWENSUnsteadySetup(ExplicitComponent):
         blade_geo_dict["outer_shape_bem"]["blade_mountpoint"] = modopt["OWENS"]["blade"]["blade_mountpoint"]
         blade_geo_dict["outer_shape_bem"]["airfoil_position"] = {}
         blade_geo_dict["outer_shape_bem"]["airfoil_position"]["grid"] = nd_blade_grid # not sure how those numbers from
-        blade_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = rotorse_options["airfoil_labels"]
+        # The airfoils in options are guaranteed to have the same number as the airfoil positions, so if not, just copy to the same length
+        if len(rotorse_options["airfoil_labels"]) == len(nd_blade_grid):
+            blade_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = rotorse_options["airfoil_labels"]
+        else:
+            blade_geo_dict["outer_shape_bem"]["airfoil_position"]["labels"] = [rotorse_options["airfoil_labels"][0]]*len(nd_blade_grid)
         blade_geo_dict["outer_shape_bem"]["chord"] = {}
         blade_geo_dict["outer_shape_bem"]["chord"]["grid"] = nd_blade_grid
         blade_geo_dict["outer_shape_bem"]["chord"]["values"] = inputs["blade_chord_values"]
@@ -713,8 +723,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
             material_i["Xt"] = inputs["Xt"][i,:]
             material_i["Xc"] = inputs["Xc"][i,:]
             material_i["unit_cost"] = inputs["unit_cost"][i]
-            material_i["A"] = [420.0,415.0,375.0,275.0,190.0,0.0] #inputs["wohler_A_mat"][i]
-            material_i["m"] = [0.0,1.0,2.0,4.0,6.0,20.0] #inputs["wohler_m_mat"][i]
+            material_i["A"] = (inputs["wohler_A_mat"][i] *(10**np.array([0.001,1.0,2.0,4.0,6.0,20.0]))** (-1/inputs["wohler_m_mat"][i]))
+            material_i["A"][-1] = 0 # hard coded the last one to be zero cause the interpolation did not go to zero
+            material_i["m"] = [0.001,1.0,2.0,4.0,6.0,20.0] # hard coded cycle numbers
             material_i["S"] = inputs["S"][i]
 
             material_dict.append(material_i)
@@ -723,7 +734,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
         yaml_dict = {}
         yaml_dict["name"] = "WINDIO"
         # Append all other options to the dict
-        yaml_dict["assembly"] = {'turbine_class': 'I', 'turbulence_class': 'B', 'drivetrain': 'geared', 'rotor_orientation': 'upwind', 'number_of_blades': 3, 'hub_height': -25.2, 'rotor_diameter': 20.0, 'rated_power': 500000, 'lifetime': 25.0, 'marine_hydro': True, 'turbine_type': 'vertical'}
+        yaml_dict["assembly"] = modopt["assembly"]
+        yaml_dict["assembly"]["hub_height"] = inputs["hub_height"][0]
+        # {'turbine_class': 'I', 'turbulence_class': 'B', 'drivetrain': 'geared', 'rotor_orientation': 'upwind', 'number_of_blades': 3, 'hub_height': -25.2, 'rotor_diameter': 20.0, 'rated_power': 500000, 'lifetime': 25.0, 'marine_hydro': True, 'turbine_type': 'vertical'}
         yaml_dict["components"] = {}
         yaml_dict["components"]["tower"] = tower_geo_dict
         yaml_dict["components"]["blade"] = blade_geo_dict
@@ -733,25 +746,39 @@ class OWENSUnsteadySetup(ExplicitComponent):
         yaml_dict["components"]["struts"] = strut_dict
         yaml_dict["materials"] = material_dict
 
+        yaml_dict["environment"] = {}
+        yaml_dict["environment"]["air_density"] = inputs["rho"][0]
+        yaml_dict["environment"]["air_dyn_viscosity"] = inputs["mu"][0]
+        yaml_dict["environment"]["gravity"] = np.array([0,0,-9.81])
 
-        yaml_dict["environment"] = {'air_density': 1.225, 'air_dyn_viscosity': 1.7894e-05, 'air_speed_sound': 350.0, 'shear_exp': 0.0, 'gravity': 9.80665, 'weib_shape_parameter': 2.0, 'water_density': 1025.0, 'water_dyn_viscosity': 0.0013351, 'soil_shear_modulus': 140000000.0, 'soil_poisson': 0.4, 'water_depth': 50.0, 'air_pressure': 101325.0, 'air_vapor_pressure': 2500.0, 'significant_wave_height': 1.0, 'significant_wave_period': 5.0}
+        # yaml_dict["environment"] = {'air_density': 1.225, 'air_dyn_viscosity': 1.7894e-05, 'air_speed_sound': 350.0, 'shear_exp': 0.0, 'gravity': 9.80665, 'weib_shape_parameter': 2.0, 'water_density': 1025.0, 'water_dyn_viscosity': 0.0013351, 'soil_shear_modulus': 140000000.0, 'soil_poisson': 0.4, 'water_depth': 50.0, 'air_pressure': 101325.0, 'air_vapor_pressure': 2500.0, 'significant_wave_height': 1.0, 'significant_wave_period': 5.0}
 
 
         # jl_ordered_dict = convert(jl.OrderedDict, yaml_dict)
-        FileTools.save_yaml(outdir="/Users/yliao/repos/WEIS/examples/18_owens", fname="data.yml", data_out=yaml_dict)
+        FileTools.save_yaml(outdir=path, fname="data.yml", data_out=yaml_dict)
+
+
+
+        # update vtk output dir
+        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"./vtk_{self.counter}/windio"
+        self.counter += 1
+
 
         # Update RPM path based on the TSR input
         print("controlStrategy is: ", self.owens_modeling_options["OWENS_Options"]["controlStrategy"])
+
+        
         if modopt["OWENS"]["general"]["controlStrategy"] == "tsrTracking":
             TSR = inputs["tsr"][0]
             Blade_Radius = np.max(blade_geo_dict["outer_shape_bem"]["reference_axis"]["x"]["values"])
             self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"] = np.array(modopt["OWENS"]["general"]["Prescribed_Vinf_Vinf_controlpoints"])*TSR*30/np.pi/Blade_Radius
             self.owens_modeling_options["OWENS_Options"]["controlStrategy"] = "prescribedRPM" # still use prescribedRPM for OWENS
             self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"]
-            FileTools.save_yaml(outdir="./", fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
+            FileTools.save_yaml(outdir=path, fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
+            print("TSR is: ", TSR)
 
 
-        jl.OWENS.runOWENSWINDIO("./OWENS_Opt.yml", "/Users/yliao/repos/WEIS/examples/18_owens/data.yml",path)
+        jl.OWENS.runOWENSWINDIO(path+"/OWENS_Opt.yml", path+"/data.yml",path)
 
         # setup_outputs = jl.OWENS.setupOWENS(jl.OWENSAero, path, 
         #                                     rho=rho,
@@ -962,7 +989,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # topDamage_tower_L = structural_failure_outputs[20]
 
         # Parse outputs using h5 files
-        output_path = os.path.join(path, "InitialDataOutputs.h5")
+        output_path = os.path.join(path, "InitialDataOutputs_windio.h5")
         output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "SF_ult_U"])
         massOwens = output_h5["massOwens"]
         omegaHist = output_h5["OmegaHist"]
@@ -976,7 +1003,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # # Note: Change the return line in topRunDLC in OWENS to "return mass_breakout_twr, genPower, massOwens"
         # print("-FReactionHist[:,5]: ", -FReactionHist[:,5])
         outputs["mass"] = massOwens
-        outputs["power"] = np.mean(FReactionHist[:,5]*omegaHist)
+        outputs["power"] = np.mean(-FReactionHist[:,5]*omegaHist)
         outputs["lcoe"] = massOwens/outputs["power"]
 
 

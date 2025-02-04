@@ -971,6 +971,7 @@ class WindPark(om.Group):
             self.connect("blade.ps.layer_thickness_param", "owens.blade_layer_thickness")
 
             # connect tower to owens tower
+            self.connect("tower_grid.s", "owens.tower_grid")
             self.connect("tower.ref_axis", "owens.tower_ref_axis")
             self.connect("tower.diameter", "owens.tower_diameter")
 
@@ -1015,6 +1016,17 @@ class WindPark(om.Group):
             self.connect("materials.wohler_exp", "owens.wohler_m_mat")
             self.connect("materials.wohler_intercept", "owens.wohler_A_mat")
             self.connect("materials.ply_t_from_yaml", "owens.ply_t")
+
+            # connect environment
+            if modeling_options["flags"]["marine_hydro"]:
+                self.connect("env.rho_water", "owens.rho")
+                self.connect("env.mu_water", "owens.mu")
+            else:
+                self.connect("env.rho_air", "owens.rho")
+                self.connect("env.mu_air", "owens.mu")   
+
+            # connect configuration to owen 
+            self.connect("configuration.hub_height_user", "owens.hub_height")
 
             # control tsr
             if modeling_options["OWENS"]["general"]["controlStrategy"] == "tsrTracking":
