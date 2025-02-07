@@ -15,7 +15,7 @@ import openmdao.api as om
 from openmdao.api                           import ExplicitComponent
 from wisdem.commonse.utilities import arc_length
 from weis.aeroelasticse import FileTools
-# from wisdem.commonse.mpi_tools              import MPI
+from wisdem.commonse.mpi_tools              import MPI
 # from wisdem.commonse import NFREQ
 # from wisdem.commonse.cylinder_member import get_nfull
 # import wisdem.commonse.utilities              as util
@@ -49,8 +49,8 @@ from juliacall import Pkg as jlPkg
 from weis.owens.OWENS_output_reader import *
 from collections import OrderedDict
 
-# if MPI:
-#     from mpi4py   import MPI
+if MPI:
+    from mpi4py   import MPI
 
         
 class OWENSUnsteadySetup(ExplicitComponent):
@@ -95,6 +95,24 @@ class OWENSUnsteadySetup(ExplicitComponent):
         n_layers_strut = strut_options["n_layers"]
         n_webs_strut = strut_options["n_webs"]
 
+        # Initialize directory
+        self.OWENS_dir_base = modopt["OWENS"]["general"]["run_path"]
+        if not os.path.isabs(self.OWENS_dir_base):
+            OWENS_dir_base = os.path.join(os.getcwd(), self.OWENS_dir_base)
+
+        if MPI:
+            rank = MPI.COMM_WORLD.Get_rank()
+            self.OWENS_run_dir = os.path.join(self.OWENS_dir_base, "rank_%000d"%int(rank))
+            # self.OWENS_namingOut = self.OWENS_InputFile+'_%000d'%int(rank)
+        else:
+            self.OWENS_run_dir = self.OWENS_dir_base
+            # self.OWENS_namingOut = self.OWENS_InputFile
+
+        if not os.path.exists(self.OWENS_run_dir):
+            os.makedirs(self.OWENS_run_dir, exist_ok=True)
+
+        
+
 
         # Initialize OWENS modeling options
         self.owens_modeling_options = {}
@@ -105,7 +123,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.owens_modeling_options["OWENS_Options"]["controlStrategy"] = modopt["OWENS"]["general"]["controlStrategy"]
         self.owens_modeling_options["OWENS_Options"]["numTS"] = modopt["OWENS"]["general"]["numTS"]
         self.owens_modeling_options["OWENS_Options"]["delta_t"] = modopt["OWENS"]["general"]["delta_t"]
-        self.owens_modeling_options["OWENS_Options"]["dataOutputFilename"] = modopt["OWENS"]["general"]["dataOutputFilename"]
+        self.owens_modeling_options["OWENS_Options"]["dataOutputFilename"] = os.path.join(self.OWENS_run_dir,modopt["OWENS"]["general"]["dataOutputFilename"])
         self.owens_modeling_options["OWENS_Options"]["MAXITER"] = modopt["OWENS"]["general"]["MAXITER"]
         self.owens_modeling_options["OWENS_Options"]["TOL"] = modopt["OWENS"]["general"]["TOL"]
         self.owens_modeling_options["OWENS_Options"]["verbosity"] = modopt["OWENS"]["general"]["verbosity"]
@@ -123,7 +141,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.owens_modeling_options["OWENSFEA_Options"] = modopt["OWENS"]["OWENSFEA_Options"]
         self.owens_modeling_options["Mesh_Options"] = modopt["OWENS"]["Mesh_Options"]
         self.owens_modeling_options["OWENSOpenFASTWrappers_Options"] = modopt["OWENS"]["OWENSOpenFASTWrappers"]
-        FileTools.save_yaml(outdir="./", fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
+        FileTools.save_yaml(outdir=self.OWENS_run_dir, fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
 
 
         # self.analysis_type = modopt["OWENS"]["general"]["analysisType"]
@@ -404,8 +422,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         material_name = modopt["materials"]["mat_name"]
 
-
-        path = modopt["OWENS"]["general"]["run_path"]
         number_of_blades = int(inputs["Nbld"][0])
 
         # Below numbers should not be set separately from blade shape and tower shape (ref_axis)
@@ -755,12 +771,12 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
 
         # jl_ordered_dict = convert(jl.OrderedDict, yaml_dict)
-        FileTools.save_yaml(outdir=path, fname="data.yml", data_out=yaml_dict)
+        FileTools.save_yaml(outdir=self.OWENS_run_dir, fname="data.yml", data_out=yaml_dict)
 
 
 
         # update vtk output dir
-        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"./vtk_{self.counter}/windio"
+        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_{self.counter}/windio"
         self.counter += 1
 
 
@@ -774,11 +790,11 @@ class OWENSUnsteadySetup(ExplicitComponent):
             self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"] = np.array(modopt["OWENS"]["general"]["Prescribed_Vinf_Vinf_controlpoints"])*TSR*30/np.pi/Blade_Radius
             self.owens_modeling_options["OWENS_Options"]["controlStrategy"] = "prescribedRPM" # still use prescribedRPM for OWENS
             self.owens_modeling_options["OWENS_Options"]["Prescribed_RPM_RPM_controlpoints"]
-            FileTools.save_yaml(outdir=path, fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
+            FileTools.save_yaml(outdir=self.OWENS_run_dir, fname="OWENS_Opt.yml", data_out=self.owens_modeling_options)
             print("TSR is: ", TSR)
 
 
-        jl.OWENS.runOWENSWINDIO(path+"/OWENS_Opt.yml", path+"/data.yml",path)
+        jl.OWENS.runOWENSWINDIO(self.OWENS_run_dir+"/OWENS_Opt.yml", self.OWENS_run_dir+"/data.yml",self.OWENS_dir_base)
 
         # setup_outputs = jl.OWENS.setupOWENS(jl.OWENSAero, path, 
         #                                     rho=rho,
@@ -989,7 +1005,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # topDamage_tower_L = structural_failure_outputs[20]
 
         # Parse outputs using h5 files
-        output_path = os.path.join(path, "InitialDataOutputs_windio.h5")
+        output_path = os.path.join(self.OWENS_run_dir, "InitialDataOutputs_windio.h5")
         output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "SF_ult_U"])
         massOwens = output_h5["massOwens"]
         omegaHist = output_h5["OmegaHist"]
