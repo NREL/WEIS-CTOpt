@@ -565,7 +565,7 @@ properties:
                                     type: boolean
                                     default: False
                                     description: Flag switching between steady wind and turbulent wind grid from TurbSim.
-                                Echo:
+                                Echo: &echo
                                     type: boolean
                                     default: False
                                     description: Echo input data to <RootName>.ech (flag)
@@ -1318,52 +1318,763 @@ properties:
                         default: Darrieus"
                         desciption: mesh Darrieus, H-VAWT, controls if the tips of the blades are joined to the tower in the mesh or not. 
             OWENSOpenFASTWrappers:
-                    type: object
-                    default: {}
-                    properties:
-                        windINPfilename: 
-                            type: string
-                            default: nothing
-                            decription: If ifw or AeroDyn is being used, gets overwritten if using the DLC analysis type, the moordyn file location, like in the unit test
-                        ifw_libfile: 
-                            type: string
-                            default: nothing
-                            desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
-                        hd_lib: 
-                            type: string
-                            default: nothing
-                            description: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
-                        md_lib: 
-                            type: string
-                            default: nothing
-                            desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
-                        adi_lib: 
-                            type: string
-                            default: nothing
-                            desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
-                        adi_rootname: 
-                            type: string
-                            default: /aerodyn
-                            desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
-                        hd_input_file: 
-                            type: string
-                            default: none
-                            decription: If platformActive, the hydrodyn file location, like in the unit test
-                        ss_input_file: 
-                            type: string
-                            default: none
-                            desciption: If platformActive, the sea state file location, like in the unit test
-                        md_input_file: 
-                            type: string
-                            default: none
-                            decription: If platformActive, the moordyn file location, like in the unit test
-                        potflowfile: 
-                            type: string
-                            default: nothing
-                            desciption: If platformActive, the potential flow files location, like in the unit test
-                        WindType: 
+                type: object
+                default: {}
+                properties:
+                    windINPfilename: 
+                        type: string
+                        default: nothing
+                        decription: If ifw or AeroDyn is being used, gets overwritten if using the DLC analysis type, the moordyn file location, like in the unit test
+                    ifw_libfile: 
+                        type: string
+                        default: nothing
+                        desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
+                    hd_lib: 
+                        type: string
+                        default: nothing
+                        description: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
+                    md_lib: 
+                        type: string
+                        default: nothing
+                        desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
+                    adi_lib: 
+                        type: string
+                        default: nothing
+                        desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
+                    adi_rootname: 
+                        type: string
+                        default: /aerodyn
+                        desciption: location of the respective OpenFAST library, if nothing it will use the internal OWENS installation
+                    hd_input_file: 
+                        type: string
+                        default: none
+                        decription: If platformActive, the hydrodyn file location, like in the unit test
+                    ss_input_file: 
+                        type: string
+                        default: none
+                        desciption: If platformActive, the sea state file location, like in the unit test
+                    md_input_file: 
+                        type: string
+                        default: none
+                        decription: If platformActive, the moordyn file location, like in the unit test
+                    potflowfile: 
+                        type: string
+                        default: nothing
+                        desciption: If platformActive, the potential flow files location, like in the unit test
+                    WindType: 
+                        type: integer
+                        default: 3
+                        decription: Derived parameter, inflowwind wind file type when DLC generator is active, matches inflowwind WindType 
+            HydroDyn: 
+                type: object
+                default: {}
+                properties:
+                    Echo: *echo
+                    PotMod:
+                        type: integer
+                        enum: [0, 1, 2]
+                        default: 0
+                        description: Potential-flow model {0 = none=no potential flow, 1 = frequency-to-time-domain transforms based on Capytaine/NEMOH/WAMIT output, 2 = fluid-impulse theory (FIT)} (switch)
+                    ExctnMod:
+                        type: integer
+                        enum: [0, 1, 2]
+                        default: 0
+                        description: Wave Excitation model {0 = None, 1 = DFT, 2 = state-space} (switch) [only used when PotMod=1; STATE-SPACE REQUIRES *.ssexctn INPUT FILE]
+                    ExctnDisp:
+                        type: integer
+                        enum: [0, 1, 2]
+                        default: 0
+                        description: 'Method of computing Wave Excitation {0: use undisplaced position, 1: use displaced position, 2: use low-pass filtered displaced position) [only used when PotMod=1 and ExctnMod>0 and SeaStates WaveMod>0]} (switch)'
+                    ExctnCutOff:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e3
+                        default: 10.0
+                        unit: Hz
+                        description: Cutoff (corner) frequency of the low-pass time-filtered displaced position (Hz) [>0.0] [used only when PotMod=1, ExctnMod>0, and ExctnDisp=2]) [only used when PotMod=1 and ExctnMod>0 and SeaState's WaveMod>0]} (switch)
+                    PtfmYMod:
+                        type: integer
+                        enum: [0, 1]
+                        default: 0
+                        description: 'Model for large platform yaw offset {0: Static reference yaw offset based on PtfmRefY, 1: dynamic reference yaw offset based on low-pass filtering the PRP yaw motion with cutoff frequency PtfmYCutOff} (switch)'
+                    PtfmRefY:
+                        type: number
+                        default: 0.0
+                        description: Constant (if PtfmYMod=0) or initial (if PtfmYMod=1) platform reference yaw offset (deg)
+                    PtfmYCutOff:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e3
+                        default: 0.01
+                        unit: Hz
+                        description: Cutoff frequency for the low-pass filtering of PRP yaw motion when PtfmYMod=1 [unused when PtfmYMod=0] (Hz)
+                    NExctnHdg:
+                        type: integer
+                        default: 36
+                        minimum: 1
+                        maximum: 360
+                        description: Number of evenly distributed platform yaw/heading angles over the range of [-180, 180) deg for which the wave excitation shall be computed [only used when PtfmYMod=1] (-)
+                    RdtnMod:
+                        type: integer
+                        enum: [0, 1, 2]
+                        default: 0
+                        description: Radiation memory-effect model {0 = no memory-effect calculation, 1 = convolution, 2 = state-space} (switch) [only used when PotMod=1; STATE-SPACE REQUIRES *.ss INPUT FILE]
+                    RdtnTMax:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e3
+                        default: 60.0
+                        unit: s
+                        description: Analysis time for wave radiation kernel calculations (sec) [only used when PotMod=1; determines RdtnDOmega=Pi/RdtnTMax in the cosine transform; MAKE SURE THIS IS LONG ENOUGH FOR THE RADIATION IMPULSE RESPONSE FUNCTIONS TO DECAY TO NEAR-ZERO FOR THE GIVEN PLATFORM!]
+                    RdtnDT:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e3
+                        default: 0.0125
+                        unit: s
+                        description: Time step for wave radiation kernel calculations, use 0.0 for default (sec) [only used when PotMod=1; DT<=RdtnDT<=0.1 recommended; determines RdtnOmegaMax=Pi/RdtnDT in the cosine transform]
+                    NBody:
+                        type: integer
+                        default: 1
+                        minimum: 1
+                        maximum: 100
+                        description: Number of WAMIT bodies to be used (-) [>=1; only used when PotMod=1. If NBodyMod=1, the WAMIT data contains a vector of size 6*NBody x 1 and matrices of size 6*NBody x 6*NBody; if NBodyMod>1, there are NBody sets of WAMIT data each with a vector of size 6 x 1 and matrices of size 6 x 6]
+                    NBodyMod:
+                        type: integer
+                        enum: [1, 2, 3]
+                        default: 1
+                        description: 'Body coupling model {1: include coupling terms between each body and NBody in HydroDyn equals NBODY in WAMIT, 2: neglect coupling terms between each body and NBODY=1 with XBODY=0 in WAMIT, 3: Neglect coupling terms between each body and NBODY=1 with XBODY=/0 in WAMIT} (switch) [only used when PotMod=1]'
+                    PotFile:
+                        type: string
+                        default: 'unused'
+                        description: Will be automatically filled in with HAMS output unless a value here overrides it; WAMIT output files containing the linear, nondimensionalized, hydrostatic restoring matrix (.hst), frequency-dependent hydrodynamic added mass matrix and damping matrix (.1), and frequency- and direction-dependent wave excitation force vector per unit wave amplitude (.3) (quoted string) [MAKE SURE THE FREQUENCIES INHERENT IN THESE WAMIT FILES SPAN THE PHYSICALLY-SIGNIFICANT RANGE OF FREQUENCIES FOR THE GIVEN PLATFORM; THEY MUST CONTAIN THE ZERO- AND INFINITE-FREQUENCY LIMITS]
+                    WAMITULEN:
+                        type: array
+                        default: [1.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: Characteristic body length scale used to redimensionalize WAMIT output (meters) [1 to NBody if NBodyMod>1] [only used when PotMod=1]
+                    PtfmRefxt:
+                        type: array
+                        default: [0.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: The xt offset of the body reference point(s) from (0,0,0) (meters) [1 to NBody] [only used when PotMod=1]
+                    PtfmRefyt:
+                        type: array
+                        default: [0.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: The yt offset of the body reference point(s) from (0,0,0) (meters) [1 to NBody] [only used when PotMod=1]
+                    PtfmRefzt:
+                        type: array
+                        default: [0.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: The zt offset of the body reference point(s) from (0,0,0) (meters) [1 to NBody] [only used when PotMod=1. If NBodyMod=2,PtfmRefzt=0.0]
+                    PtfmRefztRot:
+                        type: array
+                        default: [0.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: The rotation about zt of the body reference frame(s) from xt/yt (degrees) [1 to NBody] [only used when PotMod=1]
+                    PtfmVol0:
+                        type: array
+                        default: [0.0]
+                        units: m^3
+                        items:
+                            type: number
+                            minItems: 1
+                        description: Displaced volume of water when the body is in its undisplaced position (m^3) [1 to NBody] [only used when PotMod=1; USE THE SAME VALUE COMPUTED BY WAMIT AS OUTPUT IN THE .OUT FILE!]
+                    PtfmCOBxt:
+                        type: array
+                        default: [0.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: The xt offset of the center of buoyancy (COB) from the platform reference point (meters) [only used when PotMod=1]
+                    PtfmCOByt:
+                        type: array
+                        default: [0.0]
+                        unit: m
+                        items:
+                            type: number
+                            minItems: 1
+                        description: The yt offset of the center of buoyancy (COB) from the platform reference point (meters) [only used when PotMod=1]
+                    MnDrift:
+                        type: integer
+                        enum: [0, 7, 8, 9, 10, 11, 12]
+                        default: 0
+                        description: Mean-drift 2nd-order forces computed {0 = None; [7, 8, 9, 10, 11, or 12] = WAMIT file to use} [Only one of MnDrift, NewmanApp, or DiffQTF can be non-zero]
+                    NewmanApp:
+                        type: integer
+                        enum: [0, 7, 8, 9, 10, 11, 12]
+                        default: 0
+                        description: Mean- and slow-drift 2nd-order forces computed with Newman's approximation {0 = None; [7, 8, 9, 10, 11, or 12] = WAMIT file to use} [Only one of MnDrift, NewmanApp, or DiffQTF can be non-zero. Used only when WaveDirMod=0]
+                    DiffQTF:
+                        type: integer
+                        enum: [0, 10, 11, 12]
+                        default: 0
+                        description: Full difference-frequency 2nd-order forces computed with full QTF {0 = None; [10, 11, or 12] = WAMIT file to use} [Only one of MnDrift, NewmanApp, or DiffQTF can be non-zero]
+                    SumQTF:
+                        type: integer
+                        enum: [0, 10, 11, 12]
+                        default: 0
+                        description: Full summation -frequency 2nd-order forces computed with full QTF {0 = None; [10, 11, or 12] = WAMIT file to use}
+                    AddF0:
+                        type: array
+                        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                        description: Additional preload (N, N-m)
+                        items:
+                            type: number
+                            minItems: 6
+                            maxItems: 6
+                    AddCLin1: &addclin
+                        type: array
+                        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                        description: Additional linear stiffness by row (N/m, N/rad, N-m/m, N-m/rad)
+                        items:
+                            type: number
+                            minItems: 6
+                            maxItems: 6
+                    AddCLin2: *addclin
+                    AddCLin3: *addclin
+                    AddCLin4: *addclin
+                    AddCLin5: *addclin
+                    AddCLin6: *addclin
+                    AddBLin1: &addblin
+                        type: array
+                        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                        description: Additional linear damping by row (N/(m/s), N/(rad/s), N-m/(m/s), N-m/(rad/s))
+                        items:
+                            type: number
+                            minItems: 6
+                            maxItems: 6
+                    AddBLin2: *addblin
+                    AddBLin3: *addblin
+                    AddBLin4: *addblin
+                    AddBLin5: *addblin
+                    AddBLin6: *addblin
+                    AddBQuad1: &addbquad
+                        type: array
+                        default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                        description: Additional quadratic drag by row (N/(m/s)^2, N/(rad/s)^2, N-m(m/s)^2, N-m/(rad/s)^2)
+                        items:
+                            type: number
+                            minItems: 6
+                            maxItems: 6
+                    AddBQuad2: *addbquad
+                    AddBQuad3: *addbquad
+                    AddBQuad4: *addbquad
+                    AddBQuad5: *addbquad
+                    AddBQuad6: *addbquad
+                    WaveDisp:
+                        type: integer
+                        enum: [0, 1]
+                        default: 0
+                        description: 'Method of computing Wave Kinematics {0: use undisplaced position, 1: use displaced position) } (switch)'
+                    AMMod:
+                        type: integer
+                        enum: [0, 2]
+                        default: 0
+                        description: 'Method of computing distributed added-mass force. (0: Only and always on nodes below SWL at the undisplaced position. 2: Up to the instantaneous free surface) [overwrite to 0 when WaveMod = 0 or 6 or when WaveStMod = 0 in SeaState]'
+                    NMOutputs:
+                        type: integer
+                        minimum: 0
+                        maximum: 9
+                        default: 0
+                        description: Number of member outputs (-) [must be < 10]
+                    NJOutputs:
+                        type: integer
+                        minimum: 0
+                        maximum: 9
+                        default: 0
+                        description: Number of joint outputs [Must be < 10]
+                    JOutLst:
+                        type: array
+                        default: [0]
+                        description: List of JointIDs which are to be output (-)[unused if NJOutputs=0]
+                        items:
                             type: integer
-                            default: 3
-                            decription: Derived parameter, inflowwind wind file type when DLC generator is active, matches inflowwind WindType 
-            HydroDyn: *ofhydrodyn
-            MoorDyn: *ofmoordyn
+                            maxItems: 9
+                    HDSum:
+                        type: boolean
+                        default: True
+                        description: Output a summary file [flag]
+                    OutAll:
+                        type: boolean
+                        default: False
+                        description: Output all user-specified member and joint loads (only at each member end, not interior locations) [flag]
+                    OutSwtch:
+                        type: integer
+                        enum: [1, 2, 3]
+                        default: 2
+                        description: Output requested channels to [1=Hydrodyn.out, 2=GlueCode.out, 3=both files]
+                    OutFmt:
+                        type: string
+                        default: 'ES11.4e2'
+                        description: Output format for numerical results (quoted string) [not checked for validity]
+                    OutSFmt:
+                        type: string
+                        default: 'A11'
+                        description: Output format for header strings (quoted string) [not checked for validity]
+                    SimplCd: &simpl
+                        type: number
+                        minimum: 0.0
+                        maximum: 100.0
+                        default: 1.0
+                        description: Simple strip theory model coefficient, default of 1.0
+                    SimplCa: *simpl
+                    SimplCp: *simpl
+                    SimplCb: *simpl
+                    SimplCdMG: *simpl
+                    SimplCaMG: *simpl
+                    SimplCpMG: *simpl
+                    SimplCbMG: *simpl
+                    SimplAxCd: &simpl_0
+                        type: number
+                        minimum: 0.0
+                        maximum: 100.0
+                        default: 0.0
+                        description: Simple strip theory model coefficient, default of 0.0
+                    SimplAxCa: *simpl
+                    SimplAxCp: *simpl
+                    SimplAxCdMG: *simpl_0
+                    SimplAxCaMG: *simpl
+                    SimplAxCpMG: *simpl
+            MoorDyn: 
+                type: object
+                default: {}
+                properties:
+                    Echo: *echo
+                    dtM:
+                        type: number
+                        unit: s
+                        default: 0.001
+                        minimum: 0.0
+                        maximum: 100.0
+                        description: Time step to use in mooring integration (s)
+                    kbot:
+                        type: number
+                        unit: kg/(m^2*s^2)
+                        default: 3.e+6
+                        minimum: 0.0
+                        maximum: 1.e+9
+                        description: Bottom stiffness (Pa/m)
+                    cbot:
+                        type: number
+                        unit: kg/(m^2*s)
+                        default: 3.e+5
+                        minimum: 0.0
+                        maximum: 1.e+9
+                        description: Bottom damping (Pa/m)
+                    dtIC:
+                        type: number
+                        unit: s
+                        default: 1.0
+                        minimum: 0.0
+                        maximum: 100.0
+                        description: Time interval for analyzing convergence during IC gen (s)
+                    TmaxIC:
+                        type: number
+                        unit: s
+                        default: 60.0
+                        minimum: 0.0
+                        maximum: 1000.0
+                        description: Max time for ic gen (s)
+                    CdScaleIC:
+                        type: number
+                        unit: none
+                        default: 4.0
+                        minimum: 0.0
+                        maximum: 1000.0
+                        description: Factor by which to scale drag coefficients during dynamic relaxation (-)
+                    threshIC:
+                        type: number
+                        unit: none
+                        default: 1e-3
+                        minimum: 0.0
+                        maximum: 1.0
+                        description: Threshold for IC convergence (-)
+            SeaState: &ofseastate
+                type: object
+                default: {}
+                description: ServoDyn modelling options in OpenFAST
+                properties:
+                    Echo:
+                        type: boolean
+                        default: False
+                        description: Echo the input file data (flag)
+                    WtrDens:
+                        type: number
+                        default: 1025.0
+                        minimum: 0.0
+                        maximum: 1e4
+                        unit: kg/m^3
+                        description: Water density (kg/m^3)
+                    WtrDpth:
+                        type: number
+                        default: 200.0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: Water depth (meters)
+                    MSL2SWL:
+                        type: number
+                        default: 0.0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: Offset between still-water level and mean sea level (meters) [positive upward; unused when WaveMod = 6; must be zero if PotMod=1 or 2]
+                    X_HalfWidth:
+                        type: number
+                        default: 5.0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: 'Half-width of the domain in the X direction (m) [>0, NOTE: X[nX] = nX*dX, where nX = {-NX+1,-NX+2,…,NX-1} and dX = X_HalfWidth/(NX-1)]'
+                    Y_HalfWidth:
+                        type: number
+                        default: 5.0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: 'Half-width of the domain in the Y direction (m) [>0, NOTE: Y[nY] = nY*dY, where nY = {-NY+1,-NY+2,…,NY-1} and dY = Y_HalfWidth/(NY-1)]'
+                    Z_Depth:
+                        type: string
+                        default: default
+                        unit: m
+                        description: Depth of the domain the Z direction (m) relative to SWL [0 < Z_Depth <= WtrDpth+MSL2SWL;
+                    NX:
+                        type: integer
+                        default: 2
+                        minimum: 2
+                        maximum: 200
+                        description: Number of nodes in half of the X-direction domain (-) [>=2]
+                    NY:
+                        type: integer
+                        default: 2
+                        minimum: 2
+                        maximum: 200
+                        description: Number of nodes in half of the Y-direction domain (-) [>=2]
+                    NZ:
+                        type: integer
+                        default: 15
+                        minimum: 2
+                        maximum: 200
+                        description: Number of nodes in the Z direction (-) [>=2]
+                    WaveMod:
+                        type: integer
+                        enum: [0, 1, 2, 3, 4, 5, 6]
+                        default: 2
+                        description: Incident wave kinematics model {0- none/still water, 1- regular (periodic), 1P#- regular with user-specified phase, 2- JONSWAP/Pierson-Moskowitz spectrum (irregular), 3- White noise spectrum (irregular), 4- user-defined spectrum from routine UserWaveSpctrm (irregular), 5- Externally generated wave-elevation time series, 6- Externally generated full wave-kinematics time series [option 6 is invalid for PotMod/=0]} (switch)
+                    WaveStMod:
+                        type: integer
+                        enum: [0, 1, 2, 3]
+                        default: 0
+                        description: Model for stretching incident wave kinematics to instantaneous free surface {0 = none=no stretching, 1 = vertical stretching, 2 = extrapolation stretching, 3 = Wheeler stretching} (switch) [unused when WaveMod=0 or when PotMod/=0]
+                    WaveTMax:
+                        type: number
+                        default: 3600
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: s
+                        description: Analysis time for incident wave calculations (sec) [unused when WaveMod=0; determines WaveDOmega=2Pi/WaveTMax in the IFFT]
+                    WaveDT:
+                        type: number
+                        default: 0.25
+                        minimum: 0.0
+                        maximum: 10.0
+                        unit: s
+                        description: Time step for incident wave calculations     (sec) [unused when WaveMod=0; 0.1<=WaveDT<=1.0 recommended; determines WaveOmegaMax=Pi/WaveDT in the IFFT]
+                    WaveHs:
+                        type: number
+                        default: 1.1
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: Significant wave height of incident waves (meters) [used only when WaveMod=1 or 2].  These inputs will be determined by the DLC_Driver options (wave_height).
+                    WaveTp:
+                        type: number
+                        default: 8.52
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: s
+                        description: Peak spectral period of incident waves (sec) [used only when WaveMod=1 or 2].  These inputs will be determined by the DLC_Driver options (wave_period).
+                    WavePkShp:
+                        type: number
+                        default: 1.0
+                        minimum: 1
+                        maximum: 7
+                        unit: none
+                        description: Peak-shape parameter of incident wave spectrum (-) or DEFAULT (string) [used only when WaveMod=2; use 1.0 for Pierson-Moskowitz]. These inputs will be determined by the DLC_Driver options (wave_gamma).
+                    WvLowCOff:
+                        type: number
+                        default: 0.111527
+                        minimum: 0.0
+                        maximum: 1e3
+                        unit: rad/s
+                        description: Low cut-off frequency or lower frequency limit of the wave spectrum beyond which the wave spectrum is zeroed (rad/s) [unused when WaveMod=0, 1, or 6]
+                    WvHiCOff:
+                        type: number
+                        default: 1.256637  # 5 sec.
+                        minimum: 0.0
+                        maximum: 1e3
+                        unit: rad/s
+                        description: High cut-off frequency or upper frequency limit of the wave spectrum beyond which the wave spectrum is zeroed (rad/s) [unused when WaveMod=0, 1, or 6]
+                    WaveDir: # TODO: Move to Environment section
+                        type: number
+                        default: 0.0
+                        minimum: 0.0
+                        maximum: 6.283185307179586
+                        unit: rad
+                        description: Incident wave propagation heading direction [unused when WaveMod=0 or 6]. These inputs will be determined by the DLC_Driver options (wave_direction).
+                    WaveDirMod:
+                        type: integer
+                        enum: [0, 1]
+                        default: 0
+                        description: Directional spreading function {0 = none, 1 = COS2S} [only used when WaveMod=2,3, or 4]
+                    WaveDirSpread:
+                        type: number
+                        default: 1.0
+                        minimum: 0.0
+                        maximum: 1e4
+                        unit: none
+                        description: Wave direction spreading coefficient ( > 0 ) [only used when WaveMod=2,3, or 4 and WaveDirMod=1]
+                    WaveNDir:
+                        type: integer
+                        enum: [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49]
+                        default: 1
+                        description: Number of wave directions [only used when WaveMod=2,3, or 4 and WaveDirMod=1; odd number only]
+                    WaveDirRange:
+                        type: number
+                        unit: deg
+                        default: 90
+                        minimum: 0.0
+                        maximum: 360
+                        description: Range of wave directions (full range = WaveDir +/- 1/2*WaveDirRange) (degrees) [only used when WaveMod=2,3,or 4 and WaveDirMod=1]
+                    WaveSeed1:
+                        type: integer
+                        minimum: -2147483648
+                        maximum: 2147483647
+                        default: -561580799
+                        description: First random seed of incident waves [-2147483648 to 2147483647] [unused when WaveMod=0, 5, or 6]. These inputs will be determined by the DLC_Driver options (wave_seed).
+                    WaveSeed2:
+                        default: RANLUX
+                        description: Second random seed of incident waves [-2147483648 to 2147483647] [unused when WaveMod=0, 5, or 6]. Use RANLUX for internal FAST pseudo-random number generator
+                    WaveNDAmp:
+                        type: boolean
+                        default: True
+                        description: Flag for normally distributed amplitudes [only used when WaveMod=2, 3, or 4]
+                    WvKinFile:
+                        type: string
+                        default: ''
+                        description: Root name of externally generated wave data file(s) (quoted string) [used only when WaveMod=5 or 6]
+                    WvDiffQTF:
+                        type: boolean
+                        default: False
+                        description: Full difference-frequency 2nd-order wave kinematics (flag)
+                    WvSumQTF:
+                        type: boolean
+                        default: False
+                        description: Full summation-frequency  2nd-order wave kinematics (flag)
+                    WvLowCOffD:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e4
+                        default: 0.0
+                        unit: rad/s
+                        description: Low frequency cutoff used in the difference-frequencies (rad/s) [Only used with a difference-frequency method]
+                    WvHiCOffD:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e4
+                        default: 0.737863
+                        unit: rad/s
+                        description: High frequency cutoff used in the difference-frequencies (rad/s) [Only used with a difference-frequency method]
+                    WvLowCOffS:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e4
+                        default: 0.314159
+                        unit: rad/s
+                        description: Low frequency cutoff used in the summation-frequencies  (rad/s) [Only used with a summation-frequency method]
+                    WvHiCOffS:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1.e+4
+                        default: 3.2
+                        unit: rad/s
+                        description: High frequency cutoff used in the summation-frequencies  (rad/s) [Only used with a summation-frequency method]
+                    ConstWaveMod:
+                        type: integer
+                        enum: [0, 1, 2]
+                        default: 0
+                        description: 'Constrained wave model: 0=none; 1=Constrained wave with specified crest elevation, alpha; 2=Constrained wave with guaranteed peak-to-trough crest height, HCrest (flag)'
+                    CrestHmax:
+                        type: number
+                        default: 1.0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: Crest height (2*alpha for ConstWaveMod=1 or HCrest for ConstWaveMod=2), must be larger than WaveHs (m) [unused when ConstWaveMod=0]
+                    CrestTime:
+                        type: number
+                        default: 60.0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: s
+                        description: Time at which the crest appears (s) [unused when ConstWaveMod=0]
+                    CrestXi:
+                        type: number
+                        default: 0.0
+                        description: X-position of the crest (m) [unused when ConstWaveMod=0]
+                    CrestYi:
+                        type: number
+                        default: 0.0
+                        description: Y-position of the crest (m) [unused when ConstWaveMod=0]
+                    CurrMod:
+                        type: integer
+                        enum: [0, 1, 2]
+                        default: 0
+                        description: Current profile model {0 = none=no current, 1 = standard, 2 = user-defined from routine UserCurrent} (switch)
+                    CurrSSV0:
+                        type: number
+                        minimum: 0.0
+                        maximum: 100.0
+                        default: 0.0
+                        unit: m/s
+                        description: Sub-surface current velocity at still water level  (m/s) [used only when CurrMod=1]
+                    CurrSSDir:
+                        type: number
+                        default: 0
+                        maximum: 6.283185307179586
+                        unit: rad
+                        description: Sub-surface current heading direction (radians) or 0.0 for default [used only when CurrMod=1]
+                    CurrNSRef:
+                        type: number
+                        minimum: 0.0
+                        maximum: 1e4
+                        default: 20.0
+                        unit: m
+                        description: Near-surface current reference depth (meters) [used only when CurrMod=1]
+                    CurrNSV0:
+                        type: number
+                        minimum: 0.0
+                        maximum: 100.0
+                        default: 0.0
+                        unit: m/s
+                        description: Near-surface current velocity at still water level (m/s) [used only when CurrMod=1]
+                    CurrNSDir:
+                        type: number
+                        default: 0.0
+                        minimum: 0.0
+                        maximum: 6.283185307179586
+                        unit: rad
+                        description: Near-surface current heading direction (degrees) [used only when CurrMod=1]
+                    CurrDIV:
+                        type: number
+                        minimum: 0.0
+                        maximum: 100.0
+                        default: 0.0
+                        unit: m/s
+                        description: Depth-independent current velocity (m/s) [used only when CurrMod=1]
+                    CurrDIDir:
+                        type: number
+                        default: 0.0
+                        minimum: 0.0
+                        maximum: 6.283185307179586
+                        unit: rad
+                        description: Depth-independent current heading direction (radians) [used only when CurrMod=1]
+                    MCFD:
+                        type: number
+                        default: 0
+                        minimum: 0.0
+                        maximum: 1e5
+                        unit: m
+                        description: MacCamy-Fuchs member radius (ignored if radius <= 0) [must be 0 when WaveMod 0 or 6]
+                    SeaStSum:
+                        type: boolean
+                        default: False
+                        description: Output a summary file [flag]
+                    OutSwtch:
+                        type: integer
+                        enum: [1, 2, 3]
+                        default: 2
+                        description: 'Output requested channels to: [1=SeaState.out, 2=GlueCode.out, 3=both files]'
+                    OutFmt:
+                        type: string
+                        default: 'ES11.4e2'
+                        description: Output format for numerical results (quoted string) [not checked for validity!]
+                    OutSFmt:
+                        type: string
+                        default: 'A11'
+                        description: Output format for header strings (quoted string) [not checked for validity!]
+                    NWaveElev:
+                        type: integer
+                        default: 1
+                        minimum: 0
+                        maximum: 9
+                        description: Number of points where the incident wave elevations can be computed (-) [maximum of 9 output locations]
+                    WaveElevxi:
+                        type: array
+                        default: ['0.0']
+                        description: List of xi-coordinates for points where the incident wave elevations can be output (meters) [NWaveElev points, separated by commas or white space; usused if NWaveElev = 0]
+                        items:
+                            type: string
+                            # default: 0.0
+                            # unit: m
+                            maxItems: 9
+                    WaveElevyi:
+                        type: array
+                        default: ['0.0']
+                        description: List of yi-coordinates for points where the incident wave elevations can be output (meters) [NWaveElev points, separated by commas or white space; usused if NWaveElev = 0]
+                        items:
+                            type: string
+                            # default: 0.0
+                            # unit: m
+                            maxItems: 9
+                    NWaveKin:
+                        type: integer
+                        default: 0
+                        minimum: 0
+                        maximum: 9
+                        description: Number of points where the wave kinematics can be output (-) [maximum of 9 output locations]
+                    WaveKinxi:
+                        type: array
+                        default: ['0.0']
+                        description: List of xi-coordinates for points where the wave kinematics can be output (meters) [NWaveKin points, separated by commas or white space; usused if NWaveKin = 0]
+                        items:
+                            type: string
+                            # default: 0.0
+                            # unit: m
+                            maxItems: 9
+                    WaveKinyi:
+                        type: array
+                        default: ['0.0']
+                        description: List of yi-coordinates for points where the wave kinematics can be output (meters) [NWaveKin points, separated by commas or white space; usused if NWaveKin = 0]
+                        items:
+                            type: string
+                            # default: 0.0
+                            # unit: m
+                            maxItems: 9
+                    WaveKinzi:
+                        type: array
+                        default: ['0.0']
+                        description: List of zi-coordinates for points where the wave kinematics can be output (meters) [NWaveKin points, separated by commas or white space; usused if NWaveKin = 0]
+                        items:
+                            type: string
+                            # default: 0.0
+                            # unit: m
+                            maxItems: 9

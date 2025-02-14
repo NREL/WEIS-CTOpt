@@ -14,8 +14,8 @@ from scipy.interpolate import PchipInterpolator, Akima1DInterpolator
 import openmdao.api as om
 from openmdao.api                           import ExplicitComponent
 from wisdem.commonse.utilities import arc_length
-from weis.aeroelasticse import FileTools
-from wisdem.commonse.mpi_tools              import MPI
+from openfast_io import FileTools
+from weis.glue_code.mpi_tools              import MPI
 # from wisdem.commonse import NFREQ
 # from wisdem.commonse.cylinder_member import get_nfull
 # import wisdem.commonse.utilities              as util
@@ -776,7 +776,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
 
         # update vtk output dir
-        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_{self.counter}/windio"
+        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_restart_{self.counter}/windio"
         self.counter += 1
 
 
@@ -1006,13 +1006,19 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # Parse outputs using h5 files
         output_path = os.path.join(self.OWENS_run_dir, "InitialDataOutputs_windio.h5")
-        output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "SF_ult_U"])
+        output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "topDamage_blade_L", "topDamage_tower_U", "topDamage_tower_L" , "SF_ult_U", "SF_ult_L", "SF_ult_TU", "SF_ult_TL"])
         massOwens = output_h5["massOwens"]
         omegaHist = output_h5["OmegaHist"]
         FReactionHist = output_h5["FReactionHist"]
         # print("shape of FReactionHist: ", FReactionHist.shape)
         topDamage_blade_U = output_h5["topDamage_blade_U"]
+        topDamage_blade_L = output_h5["topDamage_blade_L"]
+        topDamage_tower_U = output_h5["topDamage_tower_U"]
+        topDamage_tower_L = output_h5["topDamage_tower_L"]
         SF_ult_U= output_h5["SF_ult_U"]
+        SF_ult_L= output_h5["SF_ult_L"]
+        SF_ult_TU= output_h5["SF_ult_TU"]
+        SF_ult_TL= output_h5["SF_ult_TL"]
         t = output_h5["t"]
 
         # # Unpack outputs
@@ -1025,8 +1031,18 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
 
         # # OWENS example uses ks aggregation
-        maxFatiguePer20yr = np.max(topDamage_blade_U/t[-1]*60*60*20*365*24)
-        minSF = np.min(SF_ult_U)
+        maxFatiguePer20yr_blade_U = np.max(topDamage_blade_U/t[-1]*60*60*20*365*24)
+        maxFatiguePer20yr_blade_L = np.max(topDamage_blade_L/t[-1]*60*60*20*365*24)
+        maxFatiguePer20yr_tower_U = np.max(topDamage_tower_U/t[-1]*60*60*20*365*24)
+        maxFatiguePer20yr_tower_L = np.max(topDamage_tower_L/t[-1]*60*60*20*365*24)
+        maxFatiguePer20yr = np.max([maxFatiguePer20yr_blade_L, maxFatiguePer20yr_blade_U, maxFatiguePer20yr_tower_L, maxFatiguePer20yr_tower_U])
+
+        minSF_U = np.min(SF_ult_U)
+        minSF_L = np.min(SF_ult_L)
+        minSF_TU = np.min(SF_ult_TU)
+        minSF_TL = np.min(SF_ult_TL)
+
+        minSF = np.min([minSF_L, minSF_TL, minSF_U, minSF_TU])
 
         # # Other outputs for constraints
         outputs["SF"] = minSF
