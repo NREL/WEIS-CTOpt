@@ -223,6 +223,7 @@ class WindTurbineOntologyPythonWEIS(WindTurbineOntologyPython):
         cut_in = self.wt_init['control']['supervisory']['Vin']
         cut_out = self.wt_init['control']['supervisory']['Vout']
         metocean = self.modeling_options['DLC_driver']['metocean_conditions']
+        dlc_driver_options = self.modeling_options['DLC_driver']
         dlc_generator = DLCGenerator(
             metocean,
             dlc_driver_options=dlc_driver_options,

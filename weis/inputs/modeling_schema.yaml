@@ -178,6 +178,10 @@ properties:
                 type: boolean
                 default: True
                 description: Flag to run pyHAMS
+            use_props_in_openfast:
+                type: boolean
+                default: False
+                description: Use RAFT-computed properties as OpenFAST inputs, including platform mass, intertia, CoM, displacement
     OpenFAST: &of_modopt
         type: object
         default: {}

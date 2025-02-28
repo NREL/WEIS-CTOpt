@@ -33,7 +33,7 @@ WISDEM:
     # BOS:
     #     flag: True
 
-Level3: # Options for WEIS fidelity level 3 = nonlinear time domain
+OpenFAST: # Options for WEIS fidelity level 3 = nonlinear time domain
     flag: False
     simulation:
         DT: 0.01
@@ -131,7 +131,7 @@ Level3: # Options for WEIS fidelity level 3 = nonlinear time domain
     # InflowWind:
     #     RefHt: 150.0
     
-Level1:
+RAFT:
     flag: True
     potential_model_override: 0
     trim_ballast: 0
@@ -145,7 +145,7 @@ ROSCO:
     # omega_pc: 0.198
     # U_pc: [12]
 
-# Level1:
+# RAFT:
 #     # potential_model_override: 1
 #     potential_bem_members:
 #         - downstream_col

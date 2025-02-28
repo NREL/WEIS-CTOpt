@@ -927,8 +927,8 @@ class FASTLoadCases(ExplicitComponent):
             fst_vt['Fst']['MHK'] = 0
         
         # Overwrite with user input
-        if 'MHK' in modopts_no_defaults['Level3']['simulation']:
-            fst_vt['Fst']['MHK'] = modopts_no_defaults['Level3']['simulation']['MHK']
+        if 'MHK' in modopts_no_defaults['OpenFAST']['simulation']:
+            fst_vt['Fst']['MHK'] = modopts_no_defaults['OpenFAST']['simulation']['MHK']
 
         # Update ElastoDyn
         fst_vt['ElastoDyn']['NumBl']  = self.n_blades
@@ -1059,8 +1059,8 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['AeroDyn']['TwrElev']   = twr_elev[twr_ids]
         fst_vt['AeroDyn']['TwrDiam']   = twr_d[twr_ids]
         fst_vt['AeroDyn']['TwrCd']     = inputs['tower_cd'][cd_index:]
-        fst_vt['AeroDyn']['TwrTI']     = np.ones(len(twr_elev[twr_index:])) * fst_vt['AeroDyn15']['TwrTI']
-        fst_vt['AeroDyn']['TwrCb']     = np.ones(len(twr_elev[twr_index:])) * fst_vt['AeroDyn15']['TwrCb']
+        fst_vt['AeroDyn']['TwrTI']     = np.ones(len(twr_elev[twr_index:])) * fst_vt['AeroDyn']['TwrTI']
+        fst_vt['AeroDyn']['TwrCb']     = np.ones(len(twr_elev[twr_index:])) * fst_vt['AeroDyn']['TwrCb']
 
         z_tow = twr_elev
         z_sec, _ = util.nodal2sectional(z_tow)
@@ -1143,7 +1143,7 @@ class FASTLoadCases(ExplicitComponent):
             fst_vt['ElastoDynBlade']['BldEdgSh'] = [1,0,0,0,0]
             print("WEIS Warning: Setting EdgeDOF1 to False in ElastoDyn because mode shapes were not calculated")
         
-        # Update AeroDyn15, Fst inputs for environment
+        # Update AeroDyn, Fst inputs for environment
         fst_vt['Fst']['AirDens']   = float(inputs['rho'])
         fst_vt['Fst']['SpdSound']  = float(inputs['speed_sound_air'])
         if modopt['flags']['marine_hydro']:
@@ -1159,8 +1159,8 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['AeroDyn']['Pvap']     = 'default'
 
         if modopt['flags']['marine_hydro']:
-            fst_vt['AeroDyn15']['Buoyancy'] = True
-            # fst_vt['AeroDyn15']['CavitCheck'] = True   # Disabling since WISDEM doesn't keep track of Cpmin yet
+            fst_vt['AeroDyn']['Buoyancy'] = True
+            # fst_vt['AeroDyn']['CavitCheck'] = True   # Disabling since WISDEM doesn't keep track of Cpmin yet
 
         # Update AeroDyn Blade Input File
         r = (inputs['r']-inputs['Rhub'])
@@ -1529,7 +1529,7 @@ class FASTLoadCases(ExplicitComponent):
                 fst_vt['SeaState']['WaveDirRange'] = fst_vt['SeaState']['WaveDirRange'] / np.rad2deg(1)
                 fst_vt['SeaState']['WaveElevxi'] = [str(m) for m in fst_vt['SeaState']['WaveElevxi']]
                 fst_vt['SeaState']['WaveElevyi'] = [str(m) for m in fst_vt['SeaState']['WaveElevyi']]
-                fst_vt['SeaState']['CurrSSDir'] = "DEFAULT" if fst_vt['SeaState']['CurrSSDir']<=-999.0 else np.rad2deg(fst_vt['HydroDyn']['CurrSSDir'])
+                fst_vt['SeaState']['CurrSSDir'] = "DEFAULT" if fst_vt['SeaState']['CurrSSDir']<=-999.0 else np.rad2deg(fst_vt['SeaState']['CurrSSDir'])
                 fst_vt['HydroDyn']['AddF0'] = np.array( fst_vt['HydroDyn']['AddF0'] ).reshape(-1,1)
                 fst_vt['HydroDyn']['AddCLin'] = np.vstack( tuple([fst_vt['HydroDyn']['AddCLin'+str(m+1)] for m in range(6)]) )
                 fst_vt['HydroDyn']['AddBLin'] = np.vstack( tuple([fst_vt['HydroDyn']['AddBLin'+str(m+1)] for m in range(6)]) )
@@ -1549,7 +1549,12 @@ class FASTLoadCases(ExplicitComponent):
                     fst_vt['HydroDyn']['AxCd'] = np.zeros( fst_vt['HydroDyn']['NAxCoef'] )
                     fst_vt['HydroDyn']['AxCa'] = np.zeros( fst_vt['HydroDyn']['NAxCoef'] )
                     fst_vt['HydroDyn']['AxCp'] = np.zeros( fst_vt['HydroDyn']['NAxCoef'] )
-                # Use coarse member nodes for HydroDyn
+                
+                # Other axial coefficients (zeros for now)
+                fst_vt['HydroDyn']['AxFDMod'] = np.zeros( fst_vt['HydroDyn']['NAxCoef'] )
+                fst_vt['HydroDyn']['AxVnCOff'] = np.zeros( fst_vt['HydroDyn']['NAxCoef'] )
+                fst_vt['HydroDyn']['AxFDLoFSc'] = np.zeros( fst_vt['HydroDyn']['NAxCoef'] )
+
 
             # Simplify members if using potential model only
             if modopt["RAFT"]["potential_model_override"] == 2:
@@ -1620,33 +1625,35 @@ class FASTLoadCases(ExplicitComponent):
             fst_vt['HydroDyn']['PtfmRefzt']     = [0]
             fst_vt['HydroDyn']['PtfmRefztRot']  = [0]
 
-                # If we're using the potential model, need these settings that aren't default
-                if fst_vt['HydroDyn']['PotMod'] == 1:
-                    fst_vt['HydroDyn']['ExctnMod'] = 1
-                    fst_vt['HydroDyn']['RdtnMod'] = 1
-                    fst_vt['HydroDyn']['RdtnDT'] = "DEFAULT"
+            # If we're using the potential model, need these settings that aren't default
+            if fst_vt['HydroDyn']['PotMod'] == 1:
+                fst_vt['HydroDyn']['ExctnMod'] = 1
+                fst_vt['HydroDyn']['RdtnMod'] = 1
+                fst_vt['HydroDyn']['RdtnDT'] = "DEFAULT"
+
+            # Displaced volume for WAMIT models
+            fst_vt['HydroDyn']['PtfmVol0'] = [float(inputs['platform_displacement'])] 
 
             if fst_vt['HydroDyn']['PotMod'] == 1 and modopt['OpenFAST_Linear']['flag'] and modopt['RAFT']['runPyHAMS']:
                 fst_vt['HydroDyn']['ExctnMod'] = 1
                 fst_vt['HydroDyn']['RdtnMod'] = 1
                 fst_vt['HydroDyn']['RdtnDT'] = "DEFAULT"
 
-                    from weis.ss_fitting.SS_FitTools import SSFit_Excitation, FDI_Fitting
-                    logger.warning('Writing .ss and .ssexctn models to: {}'.format(fst_vt['HydroDyn']['PotFile']))
-                    exctn_fit = SSFit_Excitation(HydroFile=fst_vt['HydroDyn']['PotFile'])
-                    rad_fit = FDI_Fitting(HydroFile=fst_vt['HydroDyn']['PotFile'])
-                    exctn_fit.writeMats()
-                    rad_fit.fit()
-                    rad_fit.outputMats()
-                    if True:
-                        fig_list = rad_fit.visualizeFits()
-                        
-                        os.makedirs(os.path.join(os.path.dirname(fst_vt['HydroDyn']['PotFile']),'rad_fit'), exist_ok=True)
+                from weis.ss_fitting.SS_FitTools import SSFit_Excitation, FDI_Fitting
+                logger.warning('Writing .ss and .ssexctn models to: {}'.format(fst_vt['HydroDyn']['PotFile']))
+                exctn_fit = SSFit_Excitation(HydroFile=fst_vt['HydroDyn']['PotFile'])
+                rad_fit = FDI_Fitting(HydroFile=fst_vt['HydroDyn']['PotFile'])
+                exctn_fit.writeMats()
+                rad_fit.fit()
+                rad_fit.outputMats()
+                if True:
+                    fig_list = rad_fit.visualizeFits()
+                    
+                    os.makedirs(os.path.join(os.path.dirname(fst_vt['HydroDyn']['PotFile']),'rad_fit'), exist_ok=True)
 
-                    for i_fig, fig in enumerate(fig_list):
-                        fig.savefig(os.path.join(os.path.dirname(fst_vt['HydroDyn']['PotFile']),'rad_fit',f'rad_fit_{i_fig}.png'))
+                for i_fig, fig in enumerate(fig_list):
+                    fig.savefig(os.path.join(os.path.dirname(fst_vt['HydroDyn']['PotFile']),'rad_fit',f'rad_fit_{i_fig}.png'))
             
-            fst_vt['HydroDyn']['PtfmVol0'] = [float(inputs['platform_displacement'])] 
 
 
         # Moordyn inputs
@@ -1687,7 +1694,7 @@ class FASTLoadCases(ExplicitComponent):
             fst_vt['MoorDyn']['Line_ID'] = np.arange(n_lines)+1
             fst_vt['MoorDyn']['LineType'] = line_names
             fst_vt['MoorDyn']['UnstrLen'] = inputs['unstretched_length']
-            fst_vt['MoorDyn']['NumSegs'] = modopt['Level3']['MoorDyn']['NumSegs']
+            fst_vt['MoorDyn']['NumSegs'] = 20*np.ones(n_lines, dtype=np.int64)      # TODO: make this a modeling option, pull in EAB modeling branch
             fst_vt['MoorDyn']['AttachA'] = np.zeros(n_lines, dtype=np.int64)
             fst_vt['MoorDyn']['AttachB'] = np.zeros(n_lines, dtype=np.int64)
             fst_vt['MoorDyn']['Outputs'] = ['-'] * n_lines
@@ -1994,7 +2001,7 @@ class FASTLoadCases(ExplicitComponent):
             ref_height = float(inputs['water_depth'] - np.abs(inputs['hub_height']))
 
             # Inflow wind wants these relative to sea bed
-            fst_vt['InflowWind']['WindVziList'] = ref_height
+            fst_vt['InflowWind']['WindVziList'] = [ref_height]
 
         else:
             ref_height = hub_height

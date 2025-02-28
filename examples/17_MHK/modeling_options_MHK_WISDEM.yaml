@@ -39,7 +39,7 @@ OWENS:
     path_to_owens_dir: path
     
 
-Level3: # Options for WEIS fidelity level 3 = nonlinear time domain
+OpenFAST: # Options for WEIS fidelity level 3 = nonlinear time domain
     flag: True
     simulation:
         DT: 0.01
@@ -115,7 +115,7 @@ Level3: # Options for WEIS fidelity level 3 = nonlinear time domain
     MoorDyn:
         dtM: 0.5e-4
         TmaxIC: 10
-        NumSegs: 20
+        # NumSegs: 20
     #     WaveSeed1: 123456789
     #     WaveSeed2: 1011121314
     #     AddBLin3: [0.0, 0.0, 4389794.6, 0.0, 0.0, 0.0]
@@ -145,7 +145,7 @@ ROSCO:
     # omega_pc: 0.198
     # U_pc: [12]
 
-# Level1:
+# RAFT:
 #     # potential_model_override: 1
 #     potential_bem_members:
 #         - downstream_col
