@@ -77,6 +77,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         jlPkg.activate(OWENS_path)
         jl.seval("using OWENS")
         jl.seval("using OWENSAero")
+        jl.seval("using OWENSOpenFASTWrappers")
         jl.seval("import PythonCall")
         jl.seval("using OrderedCollections")
 
@@ -137,6 +138,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # Write out modeling option file
         self.owens_modeling_options["DLC_Options"] = modopt["OWENS"]["DLC_Options"]
+        self.owens_modeling_options["DLC_Options"]["IEC_std"] = r"'\"1-ED3\"'"
+        self.owens_modeling_options["DLC_Options"]["WindChar"] = r"'\"A\"'"
         self.owens_modeling_options["OWENSAero_Options"] = modopt["OWENS"]["OWENSAero_Options"]
         self.owens_modeling_options["OWENSFEA_Options"] = modopt["OWENS"]["OWENSFEA_Options"]
         self.owens_modeling_options["Mesh_Options"] = modopt["OWENS"]["Mesh_Options"]
@@ -449,7 +452,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
         blade_accum_distances = arc_length(inputs["blade_ref_axis"])
         # OWENS wants dimensional grid
         blade_grid = blade_accum_distances # it should be the same too nd_blade_grid* np.maximum(blade_accum_distances)
-        blade_grid_rescale = 132.148/np.max(blade_accum_distances)*blade_accum_distances
 
         blade_geo_dict = {}
         blade_geo_dict["outer_shape_bem"] = {}
@@ -776,7 +778,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
 
         # update vtk output dir
-        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_restart_{self.counter}/windio"
+        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_{self.counter}/windio"
         self.counter += 1
 
 
@@ -1027,6 +1029,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         outputs["mass"] = massOwens
         outputs["power"] = np.mean(-FReactionHist[:,5]*omegaHist)
         outputs["lcoe"] = massOwens/outputs["power"]
+        if outputs["lcoe"] < 0:
+            outputs["lcoe"] = 100
 
 
 

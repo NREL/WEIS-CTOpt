@@ -71,6 +71,9 @@ class PoseOptimizationWEIS(PoseOptimization):
 
         elif self.opt['merit_figure'] == 'vawt_pseudolcoe':
             wt_opt.model.add_objective('owens.lcoe')
+
+        elif self.opt['merit_figure'] == 'vawt_power':
+            wt_opt.model.add_objective('owens.power', ref=-1.0)
         
         else:
             super(PoseOptimizationWEIS, self).set_objective(wt_opt)
