@@ -207,6 +207,12 @@ class DLCGenerator(object):
         if len(self.metocean_index)!=len(self.metocean['wave_period_SSS']):
             raise Exception('The vector of metocean conditions wave_period_SSS in the modeling options must have the same length of the tabulated wind speeds')
 
+        # Load extreme wave heights and periods
+        self.wave_height50 = np.array([metocean['wave_height50']])
+        self.wave_period50 = np.array([metocean['wave_period50']])
+        self.wave_height1 = np.array([metocean['wave_height1']])
+        self.wave_period1 = np.array([metocean['wave_period1']])
+
         self.initial_condition_table = initial_condition_table
 
         # Add to openfast_input_map
@@ -501,20 +507,20 @@ class DLCGenerator(object):
         # Select wind speed, sea state lookup
         if sea_state == 'normal':
             speed_table = self.metocean_index
-            wave_height_table = self.metocean['wave_height_NSS']
-            wave_period_table = self.metocean['wave_period_NSS']
+            wave_height_table = self.wave_height_NSS
+            wave_period_table = self.wave_period_NSS
         elif sea_state == 'severe':
             speed_table = self.metocean_index
-            wave_height_table = self.metocean['wave_height_SSS']
-            wave_period_table = self.metocean['wave_period_SSS']
+            wave_height_table = self.wave_height_SSS
+            wave_period_table = self.wave_period_SSS
         elif sea_state == '50-year':
             speed_table = [50.]
-            wave_height_table = self.metocean['wave_height50']
-            wave_period_table = self.metocean['wave_period50']
+            wave_height_table = self.wave_height50
+            wave_period_table = self.wave_period50
         elif sea_state == '1-year':
             speed_table = [50.]
-            wave_height_table = self.metocean['wave_height1']
-            wave_period_table = self.metocean['wave_period1']
+            wave_height_table = self.wave_height1
+            wave_period_table = self.wave_period1
 
         if self.MHK:
             speed_index = met_options['current_speed']
