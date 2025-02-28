@@ -418,6 +418,7 @@ class WindPark(om.Group):
             # Connections to aeroelasticse
             self.connect('configuration.turb_class',        'aeroelastic.turbulence_class')
             self.connect('configuration.ws_class' ,         'aeroelastic.turbine_class')
+            self.connect('configuration.lifetime',          'aeroelastic.lifetime')
             self.connect('env.water_depth',                 'aeroelastic.water_depth')
 
             if not modeling_options['OpenFAST']['from_openfast']:
@@ -585,7 +586,6 @@ class WindPark(om.Group):
                     self.connect("mooring.node_names", "aeroelastic.node_names")
             
                 # For fatigue
-                self.connect('configuration.lifetime', 'aeroelastic.lifetime')
                 self.connect('blade.fatigue.sparU_sigma_ult', 'aeroelastic.blade_sparU_ultstress')
                 self.connect('blade.fatigue.sparU_wohlerexp', 'aeroelastic.blade_sparU_wohlerexp')
                 self.connect('blade.fatigue.sparU_wohlerA', 'aeroelastic.blade_sparU_wohlerA')
