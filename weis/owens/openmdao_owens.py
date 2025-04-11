@@ -37,7 +37,7 @@ from weis.glue_code.mpi_tools              import MPI
 # from weis.aeroelasticse.utils import OLAFParams
 # from rosco.toolbox import control_interface as ROSCO_ci
 # from pCrunch.io import OpenFASTOutput
-# from pCrunch import LoadsAnalysis, PowerProduction, FatigueParams
+from pCrunch import FatigueParams, AeroelasticOutput, Crunch
 # from weis.control.dtqp_wrapper          import dtqp_wrapper
 # from weis.aeroelasticse.StC_defaults        import default_StC_vt
 # from weis.aeroelasticse.CaseGen_General import case_naming
@@ -277,7 +277,13 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.add_input('unit_cost',            val=np.zeros(n_mat), units="USD/kg", desc='1D array of the unit costs of the materials.')
         self.add_input('wohler_A_mat',            val=np.zeros(n_mat), desc='1D array of the wohler intercept of the materials.')
 
-
+        # for fatigue
+        self.add_input('blade_sparU_wohlerexp',   val=1.0,   desc='Blade root Wohler exponent, m, in S/N curve S=A*N^-(1/m)')
+        self.add_input('blade_sparU_wohlerA',   val=1.0, units="Pa",   desc='Blade root parameter, A, in S/N curve S=A*N^-(1/m)')
+        self.add_input('blade_sparU_ultstress',   val=1.0, units="Pa",   desc='Blade root ultimate stress for material')
+        self.add_input('blade_sparL_wohlerexp',   val=1.0,   desc='Blade root Wohler exponent, m, in S/N curve S=A*N^-(1/m)')
+        self.add_input('blade_sparL_wohlerA',   val=1.0, units="Pa",   desc='Blade root parameter, A, in S/N curve S=A*N^-(1/m)')
+        self.add_input('blade_sparL_ultstress',   val=1.0, units="Pa",   desc='Blade root ultimate stress for material')
         # Ignore openfast parts for now
         # TODO: work on openfast parts
         # Floating platform inputs
@@ -381,12 +387,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.model.numTS = self.numTS
         self.model.delta_t = self.delta_t
 
-    # def update_model_with_yaml(self, inputs):
-    # TODO: this is for updating the model using the yaml files, will be called in compute
-    # First take the inputs and write out the yaml file
-    # a = inputs["a"]
-    # write updated yaml input given the input values
-    # call self.model = jl.OWENS.MasterInput(new_master_file) to initialize the model with the updated yaml input file
 
     def setup_partials(self):
         # This can be set analytically from julia AD
@@ -741,9 +741,9 @@ class OWENSUnsteadySetup(ExplicitComponent):
             material_i["Xt"] = inputs["Xt"][i,:]
             material_i["Xc"] = inputs["Xc"][i,:]
             material_i["unit_cost"] = inputs["unit_cost"][i]
-            material_i["A"] = (inputs["wohler_A_mat"][i] *(10**np.array([0.001,1.0,2.0,4.0,6.0,20.0]))** (-1/inputs["wohler_m_mat"][i]))
-            material_i["A"][-1] = 0 # hard coded the last one to be zero cause the interpolation did not go to zero
             material_i["m"] = [0.001,1.0,2.0,4.0,6.0,20.0] # hard coded cycle numbers
+            material_i["A"] = (inputs["wohler_A_mat"][i] *(10**np.array(material_i["m"]))** (-1/inputs["wohler_m_mat"][i]))
+            material_i["A"][-1] = 0 # hard coded the last one to be zero cause the interpolation did not go to zero
             material_i["S"] = inputs["S"][i]
 
             material_dict.append(material_i)
@@ -778,7 +778,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
 
         # update vtk output dir
-        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_{self.counter}/windio"
+        self.owens_modeling_options["OWENS_Options"]["VTKsaveName"] = f"{self.OWENS_run_dir}/vtk_{self.counter:03d}/windio"
         self.counter += 1
 
 
@@ -1008,7 +1008,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
         # Parse outputs using h5 files
         output_path = os.path.join(self.OWENS_run_dir, "InitialDataOutputs_windio.h5")
-        output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "topDamage_blade_L", "topDamage_tower_U", "topDamage_tower_L" , "SF_ult_U", "SF_ult_L", "SF_ult_TU", "SF_ult_TL"])
+        output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "topDamage_blade_L", "topDamage_tower_U", "topDamage_tower_L" , "SF_ult_U", "SF_ult_L", "SF_ult_TU", "SF_ult_TL", "stress_U", "stress_L", "stress_TU", "stress_TL"])
         massOwens = output_h5["massOwens"]
         omegaHist = output_h5["OmegaHist"]
         FReactionHist = output_h5["FReactionHist"]
@@ -1021,6 +1021,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
         SF_ult_L= output_h5["SF_ult_L"]
         SF_ult_TU= output_h5["SF_ult_TU"]
         SF_ult_TL= output_h5["SF_ult_TL"]
+        stress_L= output_h5["stress_L"]
+        stress_U= output_h5["stress_U"]
+        stress_TU= output_h5["stress_TU"]
+        stress_TL= output_h5["stress_TL"]
         t = output_h5["t"]
 
         # # Unpack outputs
@@ -1029,7 +1033,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         outputs["mass"] = massOwens
         outputs["power"] = np.mean(-FReactionHist[:,5]*omegaHist)
         outputs["lcoe"] = massOwens/outputs["power"]
-        if outputs["lcoe"] < 0:
+        if outputs["lcoe"] < 0: # avoid negative lcoe
             outputs["lcoe"] = 100
 
 
@@ -1040,6 +1044,59 @@ class OWENSUnsteadySetup(ExplicitComponent):
         maxFatiguePer20yr_tower_U = np.max(topDamage_tower_U/t[-1]*60*60*20*365*24)
         maxFatiguePer20yr_tower_L = np.max(topDamage_tower_L/t[-1]*60*60*20*365*24)
         maxFatiguePer20yr = np.max([maxFatiguePer20yr_blade_L, maxFatiguePer20yr_blade_U, maxFatiguePer20yr_tower_L, maxFatiguePer20yr_tower_U])
+
+        # Try using pcrunch
+
+        fatigue_param_U = FatigueParams(load2stress=1.0,
+                                            lifetime=t[-1],
+                                            slope=inputs[f'blade_sparU_wohlerexp'],
+                                            ult_stress=inputs[f'blade_sparU_ultstress'],
+                                            S_intercept=inputs[f'blade_sparU_wohlerA']*1e6,
+                                            rainflow_bins=20)
+        fatigue_param_L = FatigueParams(load2stress=1.0,
+                                            lifetime=t[-1],
+                                            slope=inputs[f'blade_sparL_wohlerexp'],
+                                            ult_stress=inputs[f'blade_sparL_ultstress'],
+                                            S_intercept=inputs[f'blade_sparL_wohlerA']*1e6,
+                                            rainflow_bins=20)
+        stress_L_reordered = {}
+        stress_U_reordered = {}
+        # for layer in range(n_layers):
+        for i in range(np.shape(stress_L)[1]):
+            for j in range(np.shape(stress_L)[2]):
+                
+                stress_L_reordered[str(i)+str(j)] = stress_L[:, i, j, 0].tolist()
+        for i in range(np.shape(stress_U)[1]):
+            for j in range(np.shape(stress_U)[2]):
+                
+                stress_U_reordered[str(i)+str(j)] = stress_U[:, i, j, 0].tolist()
+        stress_L_reordered["Time"] = t.tolist()
+        stress_U_reordered["Time"] = t.tolist()
+        chan_labels_U = [str(i)+str(j) for j in range(np.shape(stress_U)[2]) for i in range(np.shape(stress_U)[1]) ]
+        chan_labels_L = [str(i)+str(j) for j in range(np.shape(stress_L)[2]) for i in range(np.shape(stress_L)[1]) ]
+
+        myfatiguesU = {}
+        myfatiguesL = {}
+        for i in chan_labels_U:
+            myfatiguesU[i] = fatigue_param_U
+        for i in chan_labels_L:
+            myfatiguesL[i] = fatigue_param_L
+        
+        myobj_L = AeroelasticOutput(stress_L_reordered, fatigue_channels=myfatiguesL)
+        myobj_U = AeroelasticOutput(stress_U_reordered, fatigue_channels=myfatiguesU)
+
+        delsU, damsU = myobj_U.get_DELs(return_damage=True)
+        delsL, damsL = myobj_L.get_DELs(return_damage=True)
+        
+        topDamage_blade_U_pcrunch = np.zeros_like(topDamage_blade_U)
+        topDamage_blade_L_pcrunch = np.zeros_like(topDamage_blade_L)
+        for i in range(np.shape(stress_U)[1]):
+            for j in range(np.shape(stress_U)[2]):
+                topDamage_blade_U_pcrunch[i,j] = damsU[str(i)+str(j)]
+        for i in range(np.shape(stress_L)[1]):
+            for j in range(np.shape(stress_L)[2]):
+                topDamage_blade_L_pcrunch[i,j] = damsL[str(i)+str(j)]
+
 
         minSF_U = np.min(SF_ult_U)
         minSF_L = np.min(SF_ult_L)

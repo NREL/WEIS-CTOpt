@@ -1004,6 +1004,13 @@ class WindPark(om.Group):
             self.connect("materials.wohler_intercept", "owens.wohler_A_mat")
             self.connect("materials.ply_t_from_yaml", "owens.ply_t")
 
+            self.connect('blade.fatigue.sparU_sigma_ult', 'owens.blade_sparU_ultstress')
+            self.connect('blade.fatigue.sparU_wohlerexp', 'owens.blade_sparU_wohlerexp')
+            self.connect('blade.fatigue.sparU_wohlerA', 'owens.blade_sparU_wohlerA')
+            self.connect('blade.fatigue.sparL_sigma_ult', 'owens.blade_sparL_ultstress')
+            self.connect('blade.fatigue.sparL_wohlerexp', 'owens.blade_sparL_wohlerexp')
+            self.connect('blade.fatigue.sparL_wohlerA', 'owens.blade_sparL_wohlerA')
+
             # connect environment
             if modeling_options["flags"]["marine_hydro"]:
                 self.connect("env.rho_water", "owens.rho")
