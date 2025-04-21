@@ -2154,11 +2154,11 @@ class FASTLoadCases(ExplicitComponent):
             for u in ['U','L']:
                 blade_fatigue_root = FatigueParams(load2stress=1.0,
                                                    slope=inputs[f'blade_spar{u}_wohlerexp'],
-                                                   ult_stress=1e-3*inputs[f'blade_spar{u}_ultstress'],
+                                                   ultimate_stress=1e-3*inputs[f'blade_spar{u}_ultstress'],
                                                    S_intercept=1e-3*inputs[f'blade_spar{u}_wohlerA'])
                 blade_fatigue_te = FatigueParams(load2stress=1.0,
                                                  slope=inputs[f'blade_te{u}_wohlerexp'],
-                                                 ult_stress=1e-3*inputs[f'blade_te{u}_ultstress'],
+                                                 ultimate_stress=1e-3*inputs[f'blade_te{u}_ultstress'],
                                                  S_intercept=1e-3*inputs[f'blade_te{u}_wohlerA'])
                 
                 for k in range(1,self.n_blades+1):
@@ -2198,7 +2198,7 @@ class FASTLoadCases(ExplicitComponent):
             lss_fatigue = FatigueParams(load2stress=1.0,
                                         dnv_name='B1',
                                         dnv_type='air',
-                                        ult_stress=1e-3*inputs['lss_ultstress'],
+                                        ultimate_stress=1e-3*inputs['lss_ultstress'],
                                         S_intercept=1e-3*inputs['lss_wohlerA'])
             for s in ['Ax','Sh']:
                 sstr = 'axial' if s=='Ax' else 'shear'
@@ -2223,7 +2223,7 @@ class FASTLoadCases(ExplicitComponent):
             tower_fatigue_base = FatigueParams(load2stress=1.0,
                                                dnv_name='D',
                                                dnv_type='air',
-                                               ult_stress=1e-3*inputs['tower_ultstress'][0],
+                                               ultimate_stress=1e-3*inputs['tower_ultstress'][0],
                                                S_intercept=1e-3*inputs['tower_wohlerA'][0])
             for s in ['Ax','Sh']:
                 sstr = 'axial' if s=='Ax' else 'shear'
@@ -2242,7 +2242,7 @@ class FASTLoadCases(ExplicitComponent):
                 monopile_fatigue_base = FatigueParams(load2stress=1.0,
                                                       dnv_name='D',
                                                       dnv_type='sea',
-                                                      ult_stress=inputs['monopile_ultstress'][0],
+                                                      ultimate_stress=inputs['monopile_ultstress'][0],
                                                       S_intercept=inputs['monopile_wohlerA'][0])
                 for s in ['Ax','Sh']:
                     sstr = 'axial' if s=='Ax' else 'shear'
@@ -2591,6 +2591,12 @@ class FASTLoadCases(ExplicitComponent):
 
         if len(U) > 0:
             self.cruncher.set_probability_turbine_class(U, discrete_inputs['turbine_class'], idx=idx_pwrcrv)
+
+        if 'user_probability' in self.options['modeling_options']['DLC_driver']['metocean_conditions']:
+            speed = modopts['DLC_driver']['metocean_conditions']['user_probability']['speed']
+            user_probability = modopts['DLC_driver']['metocean_conditions']['user_probability']['probability']
+
+            self.cruncher.set_probability_wind_distribution(U, 10., idx=idx_pwrcrv, kind='user', v_prob=speed, probability=user_probability)
             
         AEP, _ = self.cruncher.compute_aep("GenPwr", idx=idx_pwrcrv)
         outputs['AEP'] = AEP
