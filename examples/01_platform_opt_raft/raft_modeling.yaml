@@ -140,7 +140,7 @@ RAFT:
 
 ROSCO:
     flag: True
-    tuning_yaml: RM1_MHK.rosco.yaml
+    tuning_yaml: ../00_setup/RM1_MHK.rosco.yaml
     # zeta_pc: 1.23
     # omega_pc: 0.198
     # U_pc: [12]

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd 
 import multiprocessing as mp 
 
-from weis.aeroelasticse import FileTools
+from openfast_io import FileTools
 
 import raft
 
@@ -18,7 +18,7 @@ from matplotlib.lines import Line2D
 
 
 def main():
-    with open('/Users/dzalkind/Projects/USFLOWT/WEIS/outputs/0_RAFT/0_setup/raft_designs/raft_design_0.pkl','rb') as f:
+    with open('/Users/dzalkind/Tools/WEIS-CTOPT/examples/01_platform_opt_raft/outputs/17_MHK_Platform_Opt/raft_designs/raft_design_0.pkl','rb') as f:
         design = pickle.load(f)
 
     # set up the model

@@ -393,7 +393,7 @@ class RAFT_WEIS_Prep(om.ExplicitComponent):
                              float(max(1.0, icase.wave_period)),
                              float(max(1.0, icase.wave_height)),
                              float(icase.wave_heading),
-                             float(icase.current),
+                             float(icase.current_speed),
                              float(icase.wind_heading),  # TODO: redo this with new dlc_generator
                              float(icase.IECturbc)/ 100,  # TODO: check for RAFT TI
                              ]
