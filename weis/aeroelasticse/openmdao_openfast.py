@@ -2655,6 +2655,12 @@ class FASTLoadCases(ExplicitComponent):
         # Get wind distribution probabilities, make sure they are normalized
         self.cruncher.set_probability_turbine_class(U, discrete_inputs['turbine_class'], idx=ifat)
 
+        if 'user_probability' in self.options['modeling_options']['DLC_driver']['metocean_conditions']:
+            speed = modopts['DLC_driver']['metocean_conditions']['user_probability']['speed']
+            user_probability = modopts['DLC_driver']['metocean_conditions']['user_probability']['probability']
+
+            self.cruncher.set_probability_wind_distribution(U, 10., idx=idx_pwrcrv, kind='user', v_prob=speed, probability=user_probability)
+
         # Scale all DELs and damage by probability and collapse over the various DLCs (inner dot product)
         dels_total, damage_total = self.cruncher.compute_total_fatigue(lifetime=inputs['lifetime'],
                                                                        idx=iop, idx_park=inonop, idx_fault=ifault, n_fault=10)

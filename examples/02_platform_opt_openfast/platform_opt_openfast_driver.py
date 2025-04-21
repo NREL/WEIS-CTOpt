@@ -9,9 +9,9 @@ optimizing the platform
 
 ## File management
 run_dir                 = os.path.dirname( os.path.realpath(__file__) )
-fname_wt_input          = run_dir + os.sep + 'RM1.yaml'
-fname_modeling_options  = run_dir + os.sep + 'modeling_options_MHK_WISDEM.yaml'
-fname_analysis_options  = run_dir + os.sep + 'analysis_options_ptfm_opt.yaml'
+fname_wt_input          = os.path.join(run_dir,'..','00_setup','RM1.yaml')
+fname_modeling_options  = run_dir + os.sep + 'openfast_modeling.yaml'
+fname_analysis_options  = run_dir + os.sep + 'platform_opt_openfast_analysis.yaml'
 
 
 wt_opt, modeling_options, opt_options = weis_main(fname_wt_input, 
