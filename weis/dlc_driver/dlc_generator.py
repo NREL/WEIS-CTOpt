@@ -190,23 +190,30 @@ class DLCGenerator(object):
         # Metocean conditions
         self.metocean = metocean    # save all initial metocean inputs
 
+        self.wave_height_normal     = metocean['wave_height_NSS']
+        self.wave_period_normal     = metocean['wave_period_NSS']
+        self.wave_height_fatigue    = metocean['wave_height_fatigue']
+        self.wave_period_fatigue    = metocean['wave_period_fatigue']
+        self.wave_height_severe     = metocean['wave_height_SSS']
+        self.wave_period_severe     = metocean['wave_period_SSS']
+
         # Check metocean input dict
         if self.MHK:
             self.metocean_index = self.metocean['current_speed']
         else:
             self.metocean_index = self.metocean['wind_speed']
 
-        if len(self.metocean_index)!=len(self.metocean['wave_height_NSS']):
+        if len(self.metocean_index)!=len(self.wave_height_normal):
             raise Exception('The vector of metocean conditions wave_height_NSS in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.metocean_index)!=len(self.metocean['wave_period_NSS']):
+        if len(self.metocean_index)!=len(self.wave_period_normal):
             raise Exception('The vector of metocean conditions wave_period_NSS in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.metocean_index)!=len(self.metocean['wave_height_fatigue']):
+        if len(self.metocean_index)!=len(self.wave_height_fatigue):
             raise Exception('The vector of metocean conditions wave_height_fatigue in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.metocean_index)!=len(self.metocean['wave_period_fatigue']):
+        if len(self.metocean_index)!=len(self.wave_period_fatigue):
             raise Exception('The vector of metocean conditions wave_period_fatigue in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.metocean_index)!=len(self.metocean['wave_height_SSS']):
+        if len(self.metocean_index)!=len(self.wave_height_severe):
             raise Exception('The vector of metocean conditions wave_height_SSS in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.metocean_index)!=len(self.metocean['wave_period_SSS']):
+        if len(self.metocean_index)!=len(self.wave_period_severe):
             raise Exception('The vector of metocean conditions wave_period_SSS in the modeling options must have the same length of the tabulated wind speeds')
 
         # Load extreme wave heights and periods
@@ -505,12 +512,12 @@ class DLCGenerator(object):
         # Select wind speed, sea state lookup
         if sea_state == 'normal':
             speed_table = self.metocean_index
-            wave_height_table = self.wave_height_NSS
-            wave_period_table = self.wave_period_NSS
+            wave_height_table = self.wave_height_normal
+            wave_period_table = self.wave_period_normal
         elif sea_state == 'severe':
             speed_table = self.metocean_index
-            wave_height_table = self.wave_height_SSS
-            wave_period_table = self.wave_period_SSS
+            wave_height_table = self.wave_height_severe
+            wave_period_table = self.wave_period_severe
         elif sea_state == '50-year':
             speed_table = [50.]
             wave_height_table = self.wave_height50
