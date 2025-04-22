@@ -85,6 +85,14 @@ openfast_input_map = {
     'tau1_const': ("AeroDyn","tau1_const"),
 
 
+    'current_speed': [
+        ("HydroDyn","CurrDIV"),
+        ("InflowWind","HWindSpeed"),    # TODO: add this manually if MHK
+    ],
+
+    'wave_heading': ("SeaState","WaveDir"),
+
+
     # 'dlc_label': ("DLC","Label"),
     # 'wind_seed': ("DLC","WindSeed"),
     # 'wind_speed': ("DLC","MeanWS"),
@@ -94,8 +102,10 @@ openfast_input_map = {
     # However, I think it's better to be over-thorough and check that inputs are applied than the uncertainty of not checking any
     'wind_seed': ("TurbSim", "RandSeed1"),
     'direction': ("TurbSim", "direction_pn"),
-    'shear': ("TurbSim", "shear_hv")
+    'shear': ("TurbSim", "shear_hv"),
+    'turbulence_intensity': ("TurbSim", "IECTurbc"),
 }
+
 
 class DLCInstance(object):
 
@@ -125,43 +135,51 @@ class DLCInstance(object):
         self.wind_file = ''
         self.PSF = 1.35 # Partial Safety Factor
         self.azimuth_init = 0.0
+        self.marine_turbine = False
 
         if not options is None:
             self.default_turbsim_props(options)
 
     def default_turbsim_props(self, options):
-        for key in options['turbulent_wind'].keys():
-            setattr(self, key, options['turbulent_wind'][key])
+        for key in options['turbsim_inputs'].keys():
+            setattr(self, key, options['turbsim_inputs'][key])
 
 class DLCGenerator(object):
 
     dlc_schema = sch.validation.get_modeling_schema()['properties']['DLC_driver']['properties']['DLCs']['items']['properties']    
 
     def __init__(
-            self, 
-            ws_cut_in=4.0, 
-            ws_cut_out=25.0, 
-            ws_rated=10.0, 
-            wind_speed_class = 'I',
-            wind_turbulence_class = 'B', 
-            fix_wind_seeds=True, 
-            fix_wave_seeds=True, 
+            self,
             metocean={},
             dlc_driver_options={},      # note that with this addition, it includes metocean
             initial_condition_table = {},
             default_options = {},
+            **kwargs
             ):
-        self.ws_cut_in = ws_cut_in
-        self.ws_cut_out = ws_cut_out
-        self.wind_speed_class = wind_speed_class
-        self.wind_turbulence_class = wind_turbulence_class
-        self.ws_rated = ws_rated
+        
+        # Default parameters
+        self.ws_cut_in              = 4.0
+        self.ws_cut_out             = 25.0
+        self.ws_rated               = 10.0
+        self.wind_speed_class       = "I"
+        self.wind_turbulence_class  = "B"
+        self.fix_wind_seeds         = True
+        self.fix_wave_seeds         = True
+        self.MHK                    = False
+
+        # Optional population of class attributes from key word arguments
+        for (k, w) in kwargs.items():
+            try:
+                setattr(self, k, w)
+            except:
+                pass
+
         self.cases = []
-        if fix_wind_seeds:
+        if self.fix_wind_seeds:
             self.rng_wind = np.random.default_rng(12345)
         else:
             self.rng_wind = np.random.default_rng()
-        if fix_wave_seeds:
+        if self.fix_wave_seeds:
             self.rng_wave = np.random.default_rng(6789)
         else:
             self.rng_wave = np.random.default_rng()
@@ -182,24 +200,32 @@ class DLCGenerator(object):
         self.openfast_case_inputs = []
 
         # Metocean conditions
-        self.mo_ws = metocean['wind_speed']
-        self.mo_Hs_NSS = metocean['wave_height_NSS']
-        self.mo_Tp_NSS = metocean['wave_period_NSS']
-        self.mo_Hs_F = metocean['wave_height_fatigue']
-        self.mo_Tp_F = metocean['wave_period_fatigue']
-        self.mo_Hs_SSS = metocean['wave_height_SSS']
-        self.mo_Tp_SSS = metocean['wave_period_SSS']
-        if len(self.mo_ws)!=len(self.mo_Hs_NSS):
+        self.metocean = metocean    # save all initial metocean inputs
+
+        self.wave_height_normal     = metocean['wave_height_NSS']
+        self.wave_period_normal     = metocean['wave_period_NSS']
+        self.wave_height_fatigue    = metocean['wave_height_fatigue']
+        self.wave_period_fatigue    = metocean['wave_period_fatigue']
+        self.wave_height_severe     = metocean['wave_height_SSS']
+        self.wave_period_severe     = metocean['wave_period_SSS']
+
+        # Check metocean input dict
+        if self.MHK:
+            self.metocean_index = self.metocean['current_speed']
+        else:
+            self.metocean_index = self.metocean['wind_speed']
+
+        if len(self.metocean_index)!=len(self.wave_height_normal):
             raise Exception('The vector of metocean conditions wave_height_NSS in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.mo_ws)!=len(self.mo_Tp_NSS):
+        if len(self.metocean_index)!=len(self.wave_period_normal):
             raise Exception('The vector of metocean conditions wave_period_NSS in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.mo_ws)!=len(self.mo_Hs_F):
+        if len(self.metocean_index)!=len(self.wave_height_fatigue):
             raise Exception('The vector of metocean conditions wave_height_fatigue in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.mo_ws)!=len(self.mo_Tp_F):
+        if len(self.metocean_index)!=len(self.wave_period_fatigue):
             raise Exception('The vector of metocean conditions wave_period_fatigue in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.mo_ws)!=len(self.mo_Hs_SSS):
+        if len(self.metocean_index)!=len(self.wave_height_severe):
             raise Exception('The vector of metocean conditions wave_height_SSS in the modeling options must have the same length of the tabulated wind speeds')
-        if len(self.mo_ws)!=len(self.mo_Tp_SSS):
+        if len(self.metocean_index)!=len(self.wave_period_severe):
             raise Exception('The vector of metocean conditions wave_period_SSS in the modeling options must have the same length of the tabulated wind speeds')
 
         # Load extreme wave heights and periods
@@ -283,6 +309,19 @@ class DLCGenerator(object):
         else:
             wave_period = np.array([])
         return wave_period
+    
+    def get_current_speed(self, options):
+        if len(options['current_speed']) > 0:
+            current_speeds = np.array( [float(m) for m in options['current_speed']] )
+        else:
+            if self.MHK:
+                current_speeds = np.arange(self.ws_cut_in, self.ws_cut_out+0.5*options['ws_bin_size'], options['ws_bin_size'])
+                if current_speeds[-1] != self.ws_cut_out:
+                    current_speeds = np.append(current_speeds, self.ws_cut_out)
+            else:
+                current_speeds = np.array([0])
+
+        return current_speeds
 
     def get_wave_gamma(self, options):
         if len(options['wave_gamma']) > 0:
@@ -307,8 +346,16 @@ class DLCGenerator(object):
 
     def get_metocean(self, options):
         wind_speeds_indiv = self.get_wind_speeds(options)
-        wind_speed, wind_seed = self.get_wind_seeds(options, wind_speeds_indiv)
-        wave_seed = self.get_wave_seeds(options, wind_speed)
+        current_speed = self.get_current_speed(options)
+
+        # Generic speeds is index for waves
+        if self.MHK:
+            speeds = current_speed
+        else:
+            speeds = wind_speeds_indiv
+
+        wind_speed, wind_seed = self.get_wind_seeds(options, speeds)
+        wave_seed = self.get_wave_seeds(options, speeds)
         wind_heading = self.get_wind_heading(options)
         wave_height = self.get_wave_height(options)
         wave_period = self.get_wave_period(options)
@@ -316,22 +363,25 @@ class DLCGenerator(object):
         wave_heading = self.get_wave_heading(options)
         probabilities = self.get_probabilities(options)
 
+        if self.MHK:
+            flow_string_input = 'wind_speed'
+        else:
+            flow_string_input = 'current_speed'
+
         if len(wind_seed) > 1 and len(wind_seed) != len(wind_speed):
-            raise Exception("The vector of wind_seed must have either length=1 or the same length of wind speeds")
+            raise Exception(f"The vector of wind_seed must have either length=1 or the same length of {flow_string_input}")
         if len(wind_heading) > 1 and len(wind_heading) != len(wind_speed):
-            raise Exception("The vector of wind_heading must have either length=1 or the same length of wind speeds")
+            raise Exception(f"The vector of wind_heading must have either length=1 or the same length of {flow_string_input}")
         if len(wave_seed) > 1 and len(wave_seed) != len(wind_speed):
-            raise Exception("The vector of wave seeds must have the same length of wind speeds or not defined")
+            raise Exception(f"The vector of wave seeds must have the same length of {flow_string_input} or not defined")
         if len(wave_height) > 1 and len(wave_height) != len(wind_speed):
-            raise Exception("The vector of wave heights must have either length=1 or the same length of wind speeds")
+            raise Exception(f"The vector of wave heights must have either length=1 or the same length of {flow_string_input}")
         if len(wave_period) > 1 and len(wave_period) != len(wind_speed):
-            raise Exception("The vector of wave periods must have either length=1 or the same length of wind speeds")
-        if len(wave_gamma) > 1 and len(wave_gamma) != len(wind_speed):
-            raise Exception("The vector of wave_gamma must have either length=1 or the same length of wind speeds")
-        if len(wave_heading) > 1 and len(wave_heading) != len(wind_speed):
-            raise Exception("The vector of wave heading must have either length=1 or the same length of wind speeds")
+            raise Exception(f"The vector of wave periods must have either length=1 or the same length of {flow_string_input}")
         if len(probabilities) > 1 and len(probabilities) != len(wind_speed):
-            raise Exception("The vector of probabilities must have either length=1 or the same length of wind speeds")
+            raise Exception(f"The vector of probabilities must have either length=1 or the same length of {flow_string_input}")
+        # if len(probabilities) > 1 and len(probabilities) != len(wind_speed):
+        #     raise Exception(f"The vector of probabilities must have either length=1 or the same length of {flow_string}")
         if abs(sum(probabilities) - 1.) > 1.e-3:
             raise Exception("The vector of probabilities must sum to 1")
         
@@ -342,11 +392,10 @@ class DLCGenerator(object):
         metocean_case_info['wind_heading'] = wind_heading
         metocean_case_info['wave_height'] = wave_height
         metocean_case_info['wave_period'] = wave_period
-        # metocean_case_info['current_speeds'] = current_speeds
+        metocean_case_info['current_speed'] = current_speed
         metocean_case_info['wave_gamma'] = wave_gamma
         metocean_case_info['wave_heading'] = wave_heading
         metocean_case_info['probabilities'] = probabilities       
-        # metocean_case_info['current_std'] = self.mo_current_std       
         
         return metocean_case_info
 
@@ -356,12 +405,19 @@ class DLCGenerator(object):
         known_dlcs = self.dlc_schema['DLC']['enum']
         self.OF_dlccaseinputs = {key: None for key in known_dlcs}
 
+        if self.MHK:
+            gen_func_ext = '_mhk'
+            err_message = ' for MHKs'
+        else:
+            gen_func_ext = ''
+            err_message = ''        
+
         # Get extreme wind speeds
         self.IECwind()
 
         found = False
         for ilab in known_dlcs:
-            func_name = 'generate_'+str(ilab).replace('.','p')
+            func_name = f'generate_{ilab}{gen_func_ext}'.replace('.','p')
 
             if label in [ilab, str(ilab)]: # Match either 1.1 or '1.1'
                 found = True
@@ -369,7 +425,7 @@ class DLCGenerator(object):
                 break
 
         if not found:
-            raise ValueError(f'DLC {label} is not currently supported')
+            raise ValueError(f'DLC {label} is not currently supported{err_message}.')
 
         self.n_cases = len(self.cases)
 
@@ -411,6 +467,7 @@ class DLCGenerator(object):
 
         # DLC specific: Make idlc for other parts of WEIS (mostly turbsim generation)
         for _, case in enumerate(generic_case_list):
+
             idlc = DLCInstance(options=dlc_options)
             if dlc_options['IEC_WindType'] == 'ECD':
                 idlc.turbulent_wind = False
@@ -426,7 +483,11 @@ class DLCGenerator(object):
             else:
                 idlc.turbulent_wind = True
                 idlc.RandSeed1 = case['wind_seed']
-            idlc.URef = case['wind_speed']
+
+            if self.MHK:
+                idlc.URef = case['current_speed']
+            else:
+                idlc.URef = case['wind_speed']
             idlc.label = dlc_options['label']
             idlc.total_time = case['total_time']
             idlc.IEC_WindType = dlc_options['IEC_WindType']
@@ -444,6 +505,11 @@ class DLCGenerator(object):
             if dlc_options['label'] == 'AEP':
                 idlc.IECturbc = self.IECturb.NTM(idlc.URef) * dlc_options['TI_factor'] / idlc.URef * 100
 
+            # MHK 1.1, set TI
+            if dlc_options['label'] == '1.1' and self.MHK:
+                current_std_i = np.interp(case['current_speed'],self.metocean['current_speed'],self.metocean['current_std'])
+                idlc.IECturbc = 100 * current_std_i
+
             
     def apply_sea_state(self,met_options,sea_state='normal'):
         '''
@@ -457,28 +523,33 @@ class DLCGenerator(object):
         
         # Select wind speed, sea state lookup
         if sea_state == 'normal':
-            wind_speed_table = self.mo_ws
-            wave_height_table = self.mo_Hs_NSS
-            wave_period_table = self.mo_Tp_NSS
+            speed_table = self.metocean_index
+            wave_height_table = self.wave_height_normal
+            wave_period_table = self.wave_period_normal
         elif sea_state == 'severe':
-            wind_speed_table = self.mo_ws
-            wave_height_table = self.mo_Hs_SSS
-            wave_period_table = self.mo_Tp_SSS
+            speed_table = self.metocean_index
+            wave_height_table = self.wave_height_severe
+            wave_period_table = self.wave_period_severe
         elif sea_state == '50-year':
-            wind_speed_table = [50.]
+            speed_table = [50.]
             wave_height_table = self.wave_height50
             wave_period_table = self.wave_period50
         elif sea_state == '1-year':
-            wind_speed_table = [50.]
+            speed_table = [50.]
             wave_height_table = self.wave_height1
             wave_period_table = self.wave_period1
+
+        if self.MHK:
+            speed_index = met_options['current_speed']
+        else:
+            speed_index = met_options['wind_speed']
 
 
         # If the user has not defined Hs (wave_height in modopts) and Tp (wave_period in modopts), apply the metocean conditions defined by the table
         if len(met_options['wave_height'])==0:
-            met_options['wave_height'] = np.interp(met_options['wind_speed'], wind_speed_table, wave_height_table)
+            met_options['wave_height'] = np.interp(speed_index, speed_table, wave_height_table)
         if len(met_options['wave_period'])==0:
-            met_options['wave_period'] = np.interp(met_options['wind_speed'], wind_speed_table, wave_period_table)
+            met_options['wave_period'] = np.interp(speed_index, speed_table, wave_period_table)
 
     def set_time_options(self, options):
         '''
@@ -508,6 +579,9 @@ class DLCGenerator(object):
         for input in all_inputs:
             if not input in comb_options:
                 raise Exception(f'The desired input {input} is not defined. Options include {comb_options.keys()}')
+            
+            if len(comb_options[input]) == 0:
+                raise Exception(f'The input {input} is empty.')
 
         # Setup generic cross product of inputs: 
         gen_case_inputs = {}
@@ -533,8 +607,8 @@ class DLCGenerator(object):
         Determine metocean options based on dlcs and sea state requested
         met_options includes wind, waves, seeds, etc.
 
-        TODO: what input conditions are required of self?
-        TODO: what is required in dlc_options?
+        TODO: check requirements on self
+        TODO: check requirements on dlc_options
         '''
         met_options = self.get_metocean(dlc_options)
         
@@ -554,11 +628,15 @@ class DLCGenerator(object):
         # These allowed_ics should map to input in openfast_input_map
         allowed_ics = ['pitch_initial','rot_speed_initial','tau1_const']
 
+        if self.MHK:
+            index_group = 'current_speed'
+        else:
+            index_group = 'wind_speed'
         
         if self.initial_condition_table and dlc_options['turbine_status'] == 'operating': # there is an IC table that's not empty
-            dlc_wind_speeds = met_options['wind_speed']  # need to use met_options wind speeds because it accounts for seeds
-            # find group with wind_speed
-            wind_group = ['wind_speed' in gci for gci in generic_case_inputs].index(True)
+            dlc_wind_speeds = met_options[index_group]  # need to use met_options wind speeds because it accounts for seeds
+            # find group with index_group (wind_speed, current_speed)
+            wind_group = [index_group in gci for gci in generic_case_inputs].index(True)
             group = generic_case_inputs[wind_group]
 
             for initial_condition in allowed_ics:
@@ -636,6 +714,62 @@ class DLCGenerator(object):
         generic_case_inputs.append(['yaw_misalign']) # group 2
 
         self.generate_cases(generic_case_inputs,dlc_options)
+
+    def generate_1p1_mhk(self, dlc_options):
+
+        # Get default options
+        dlc_options.update(self.default_options)   
+        
+        # Handle DLC Specific options:
+        dlc_options['label'] = '1.1'
+        dlc_options['sea_state'] = 'normal'
+        dlc_options['PSF'] = 1.35
+
+        # Set yaw_misalign, else default
+        dlc_options['yaw_misalign'] = dlc_options.get('yaw_misalign',[0])
+
+        # DLC-specific: define groups
+        # These options should be the same length and we will generate a matrix of all cases
+        generic_case_inputs = []
+        generic_case_inputs.append(['total_time','transient_time'])  # group 0, (usually constants) turbine variables, DT, aero_modeling
+        generic_case_inputs.append(['current_speed','wave_height','wave_period', 'wind_seed','wave_seed']) # group 1, initial conditions will be added here, define some method that maps wind speed to ICs and add those variables to this group
+        generic_case_inputs.append(['yaw_misalign']) # group 2
+
+        self.generate_cases(generic_case_inputs,dlc_options)
+
+    def generate_1p2_mhk(self, dlc_options):
+        # Section 7.3.7.2, Table 8 in IEC docs
+        # For DLC 1.2 (TECs), the significant wave height and peak spectral period for the maximum
+        # permitted normal sea state during power production shall be selected. Wave direction shall be
+        # varied from 0° to 360° in 30° steps.
+
+        # Get default options
+        dlc_options.update(self.default_options)   
+        
+        # Handle DLC Specific options:
+        dlc_options['label'] = '1.2'
+        dlc_options['sea_state'] = 'normal'
+        dlc_options['PSF'] = 1.35
+
+        # Set height to max
+        met_options = self.gen_met_options(dlc_options, sea_state=dlc_options['sea_state'])
+        max_wave_height_operational = np.max(met_options['wave_height'])
+        dlc_options['wave_height'] = max_wave_height_operational * np.ones_like(met_options['current_speed'])
+
+        # Wave heading
+        default_wave_headings = np.arange(0,360,30)
+        if len(dlc_options['wave_heading']) == 0:   # default is []
+            dlc_options['wave_heading'] = default_wave_headings
+
+        # DLC-specific: define groups
+        # These options should be the same length and we will generate a matrix of all cases
+        generic_case_inputs = []
+        generic_case_inputs.append(['total_time','transient_time'])  # group 0, (usually constants) turbine variables, DT, aero_modeling
+        generic_case_inputs.append(['current_speed','wave_height','wave_period', 'wind_seed','wave_seed']) # group 1, initial conditions will be added here, define some method that maps wind speed to ICs and add those variables to this group
+        generic_case_inputs.append(['wave_heading'])
+
+        self.generate_cases(generic_case_inputs,dlc_options)
+
 
     def generate_AEP(self, dlc_options):
         # Same as DLC 1.1, but with a constant TI
@@ -1019,6 +1153,40 @@ class DLCGenerator(object):
                                     'rot_speed_initial','shutdown_time','final_blade_pitch'])  # group 0, (usually constants) turbine variables, DT, aero_modeling
         generic_case_inputs.append(['wind_speed','wave_height','wave_period', 'wind_seed', 'wave_seed']) # group 1, initial conditions will be added here, define some method that maps wind speed to ICs and add those variables to this group
         generic_case_inputs.append(['yaw_misalign']) # group 2
+      
+        self.generate_cases(generic_case_inputs,dlc_options)
+
+    def generate_6p1_mhk(self, dlc_options):
+        # Parked (standing still or idling) - extreme wind model 50-year return period - ultimate loads
+        # extra dlc_options: 
+        # yaw_misalign: default = [-8,8]
+
+        # Get default options
+        dlc_options.update(self.default_options)
+
+        # DLC Specific options:
+        dlc_options['label'] = '6.1'
+        dlc_options['sea_state'] = '50-year'
+        dlc_options['IEC_WindType'] = self.wind_speed_class_num + 'EWM50'
+
+        if len(dlc_options['current_speed']) == 0:
+            raise Exception('User must specify extreme current speed for MHK DLC 6.1')
+
+        # parked options
+        dlc_options['turbine_status'] = 'parked-idling'
+        dlc_options['wake_mod'] = 0
+        dlc_options['pitch_initial'] = 90.
+        dlc_options['rot_speed_initial'] = 0.
+        dlc_options['shutdown_time'] = 0.
+        dlc_options['final_blade_pitch'] = 90.
+
+
+        # DLC-specific: define groups
+        # These options should be the same length and we will generate a matrix of all cases
+        generic_case_inputs = []
+        generic_case_inputs.append(['total_time','transient_time','wake_mod','wave_model','pitch_initial',
+                                    'rot_speed_initial','shutdown_time','final_blade_pitch'])  # group 0, (usually constants) turbine variables, DT, aero_modeling
+        generic_case_inputs.append(['current_speed','wave_height','wave_period', 'wind_seed', 'wave_seed']) # group 1, initial conditions will be added here, define some method that maps wind speed to ICs and add those variables to this group
       
         self.generate_cases(generic_case_inputs,dlc_options)
 

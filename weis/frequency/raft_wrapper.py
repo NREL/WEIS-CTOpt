@@ -358,7 +358,18 @@ class RAFT_WEIS_Prep(om.ExplicitComponent):
         fix_wind_seeds = opt['DLC_driver']['fix_wind_seeds']
         fix_wave_seeds = opt['DLC_driver']['fix_wave_seeds']
         metocean = opt['DLC_driver']['metocean_conditions']
-        dlc_generator = DLCGenerator(cut_in, cut_out, rated, ws_class, turb_class, fix_wind_seeds, fix_wave_seeds, metocean)
+        dlc_generator = DLCGenerator(
+            metocean,
+            **{
+                'ws_cut_in': cut_in, 
+                'ws_cut_out':cut_out, 
+                'ws_rated':rated, 
+                'wind_speed_class':ws_class, 
+                'wind_turbulence_class':turb_class, 
+                'fix_wind_seeds':fix_wind_seeds, 
+                'fix_wave_seeds':fix_wave_seeds, 
+                'MHK': opt['flags']['marine_hydro'],
+            })
         # Generate cases from user inputs
         for i_DLC in range(len(DLCs)):
             DLCopt = DLCs[i_DLC]
@@ -381,8 +392,23 @@ class RAFT_WEIS_Prep(om.ExplicitComponent):
                              str(waveStr),
                              float(max(1.0, icase.wave_period)),
                              float(max(1.0, icase.wave_height)),
-                             float(icase.wave_heading)]
+                             float(icase.wave_heading),
+                             float(icase.current_speed),
+                             float(icase.wind_heading),  # TODO: redo this with new dlc_generator
+                             float(icase.IECturbc)/ 100,  # TODO: check for RAFT TI
+                             ]
         raft_opt['raft_dlcs'] = raft_cases
-        raft_opt['raft_dlcs_keys'] = ['wind_speed', 'wind_heading', 'turbulence',
-                                              'turbine_status', 'yaw_misalign', 'wave_spectrum',
-                                              'wave_period', 'wave_height', 'wave_heading']
+        raft_opt['raft_dlcs_keys'] = [
+            'wind_speed',
+            'wind_heading',
+            'turbulence',
+            'turbine_status',
+            'yaw_misalign',
+            'wave_spectrum',
+            'wave_period',
+            'wave_height',
+            'wave_heading',
+            'current_speed',
+            'current_heading',
+            'current_turbulence',
+            ]

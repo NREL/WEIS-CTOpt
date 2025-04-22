@@ -5452,7 +5452,7 @@
                                 "type": "string",
                                 "description": "File path of custom wind file"
                             },
-                            "turbulent_wind": {
+                            "turbsim_inputs": {
                                 "type": "object",
                                 "default": {},
                                 "description": "These are all inputs to TurbSim. These inputs usually do not need to be set unless you are trying to customize a DLC",

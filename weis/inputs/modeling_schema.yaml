@@ -182,6 +182,10 @@ properties:
                 type: boolean
                 default: True
                 description: Flag to run pyHAMS
+            use_props_in_openfast:
+                type: boolean
+                default: False
+                description: Use RAFT-computed properties as OpenFAST inputs, including platform mass, intertia, CoM, displacement
     OpenFAST: &of_modopt
         type: object
         default: {}
@@ -467,6 +471,10 @@ properties:
                             description: Status of the turbine, it can be either operating, parked-idling, or parked-still. Each DLC come with its default turbine status specified by the standards.
                             default: operating
                             enum: ['operating','parked-idling','parked-still']
+                        constrained_wave:
+                            type: boolean
+                            description: Use ConstWaveMod in this DLC
+                            default: false
                         wave_period:
                             type: array
                             description: Period between waves. If this array is populated by the user, then the field metocean_conditions is neglected. If wave_period is not defined, metocean_conditions will be used, either in the values provided by the user or with its default values (the first option is highly recommended).
@@ -487,10 +495,30 @@ properties:
                                 minItems: 1
                                 minimum: 0.0
                                 maximum: 100.0
+                        current_speed:
+                            type: array
+                            description: Water current. If this array is populated by the user, then the field metocean_conditions is neglected. If wave_height is not defined, metocean_conditions will be used, either in the values provided by the user or with its default values (the first option is highly recommended).
+                            default: []
+                            items:
+                                type: number
+                                unit: m/s
+                                minItems: 1
+                                minimum: 0.0
+                                maximum: 100.0
+                        current_std:
+                            type: array
+                            description: Standard deviation of water current speed. Versus current_speed for MHK. If this array is populated by the user, then the field metocean_conditions is neglected. If wave_height is not defined, metocean_conditions will be used, either in the values provided by the user or with its default values (the first option is highly recommended).
+                            default: []
+                            items:
+                                type: number
+                                unit: m/s
+                                minItems: 1
+                                minimum: 0.0
+                                maximum: 100.0
                         wave_heading:
                             type: array
                             description: Heading of the waves with respect to north. This array must currently have either length=1, i.e. one constant value, or the same length of the array wind_speed
-                            default: [0.]
+                            default: []
                             items:
                                 type: number
                                 unit: deg
@@ -559,7 +587,7 @@ properties:
                                 description: Groups
                             default: {}
                             description: Define additional groups to alter DLCs or sweep additional paramters.  Users can input single values to change all of the simulations in a DLC, multiple values to add an additional group to sweep over, or a list of new groups in the yaml format.
-                        turbulent_wind:
+                        turbsim_inputs:
                             type: object
                             default: {}
                             description: These are all inputs to TurbSim. These inputs usually do not need to be set unless you are trying to customize a DLC
@@ -852,6 +880,27 @@ properties:
                             minimum: 0.0
                             maximum: 50.0
                             uniqueItems: true
+                    current_speed:
+                        type: array
+                        description: Array of current speeds to tabulate Hs and Tp for MHK turbines
+                        default: [0.5 , 0.85, 1.2 , 1.55, 1.9 , 2.25, 2.6 , 2.95, 3.3 , 3.65, 4.  ]
+                        items:
+                            type: number
+                            unit: m/s
+                            minItems: 1
+                            minimum: 0.0
+                            maximum: 50.0
+                            uniqueItems: true
+                    current_std:
+                        type: array
+                        description: Default standard deviation of water current speed versus current_speed for MHK. 
+                        default: []
+                        items:
+                            type: number
+                            unit: m/s
+                            minItems: 1
+                            minimum: 0.0
+                            maximum: 100.0
                     wave_height_NSS:
                         type: array
                         description: Array of Hs for NSS conditional to wind speed
@@ -873,6 +922,39 @@ properties:
                             minItems: 1
                             minimum: 0.0
                             maximum: 1000.0
+                            uniqueItems: false
+                    current_NSS:
+                        type: array
+                        description: Array of currents for NSS conditional to wind speed
+                        default: [0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28, 0.30]
+                        items:
+                            type: number
+                            unit: m/s
+                            minItems: 1
+                            minimum: 0.0
+                            maximum: 100.0
+                            uniqueItems: false
+                    current_fatigue:
+                        type: array
+                        description: Array of currents for fatigue conditional to wind speed
+                        default: [0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28, 0.30]
+                        items:
+                            type: number
+                            unit: m/s
+                            minItems: 1
+                            minimum: 0.0
+                            maximum: 100.0
+                            uniqueItems: false
+                    current_SSS:
+                        type: array
+                        description: Array of currnents for SSS conditional to wind speed
+                        default: [0.20, 0.24, 0.28, 0.32, 0.36, 0.40, 0.44, 0.48, 0.52, 0.56, 0.60]
+                        items:
+                            type: number
+                            unit: m/s
+                            minItems: 1
+                            minimum: 0.0
+                            maximum: 100.0
                             uniqueItems: false
                     wave_height_fatigue:
                         type: array
@@ -925,6 +1007,20 @@ properties:
                             unit: m
                             minimum: 0.0
                             maximum: 100.0
+                    current_1:
+                            type: number
+                            description: Current with 1-year occurrence, used in DLC 6.3
+                            default: 0.75
+                            unit: m/s
+                            minimum: 0.0
+                            maximum: 100.0
+                    current_50:
+                            type: number
+                            description: Current with 50-year occurrence, used in DLC 6.1
+                            default: 1.3
+                            unit: m/s
+                            minimum: 0.0
+                            maximum: 100.0
                     wave_period50:
                             type: number
                             description: Wave period with 50-year occurrence, used in DLC 6.1
@@ -946,6 +1042,22 @@ properties:
                             unit: s
                             minimum: 0.0
                             maximum: 1000.0
+                    user_distribution:
+                            type: object
+                            description: User probability mass distribution
+                            default: {}
+                            properties:
+                                speed:
+                                    type: array
+                                    description: Flow speeds (m/s)
+                                    items:
+                                        type: number
+                                probability:
+                                    type: array
+                                    description: Probability mass distirbution
+                                    items:
+                                        type: number
+
             openfast_input_map:
                 type: object
                 default: {}
