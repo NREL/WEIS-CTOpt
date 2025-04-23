@@ -852,13 +852,13 @@ class FASTLoadCases(ExplicitComponent):
             for key in modeling_options['OpenFAST']['ElastoDynBlade']:
                 fst_vt['ElastoDynBlade'][key] = modeling_options['OpenFAST']['ElastoDynBlade'][key]
         
-        if 'BeamDyn' in modeling_options['OpenFAST']:
-            for key in modeling_options['OpenFAST']['BeamDyn']:
-                fst_vt['BeamDyn'][key] = modeling_options['OpenFAST']['BeamDyn'][key]
+        # if 'BeamDyn' in modeling_options['OpenFAST']:
+        #     for key in modeling_options['OpenFAST']['BeamDyn']:
+        #         fst_vt['BeamDyn'][key] = modeling_options['OpenFAST']['BeamDyn'][key]
         
-        if 'BeamDynBlade' in modeling_options['OpenFAST']:
-            for key in modeling_options['OpenFAST']['BeamDynBlade']:
-                fst_vt['BeamDynBlade'][key] = modeling_options['OpenFAST']['BeamDynBlade'][key]
+        # if 'BeamDynBlade' in modeling_options['OpenFAST']:
+        #     for key in modeling_options['OpenFAST']['BeamDynBlade']:
+        #         fst_vt['BeamDynBlade'][key] = modeling_options['OpenFAST']['BeamDynBlade'][key]
         
         if 'ElastoDynTower' in modeling_options['OpenFAST']:   
             for key in modeling_options['OpenFAST']['ElastoDynTower']:
@@ -1158,9 +1158,9 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['ElastoDynBlade']['BldFl2Sh']   = np.zeros(5)
         fst_vt['ElastoDynBlade']['BldEdgSh']   = np.zeros(5)
         for i in range(5):
-            fst_vt['ElastoDynBlade']['BldFl1Sh'][i] = inputs['flap_mode_shapes'][0,i] / sum(inputs['flap_mode_shapes'][0,:])
-            fst_vt['ElastoDynBlade']['BldFl2Sh'][i] = inputs['flap_mode_shapes'][1,i] / sum(inputs['flap_mode_shapes'][1,:])
-            fst_vt['ElastoDynBlade']['BldEdgSh'][i] = inputs['edge_mode_shapes'][0,i] / sum(inputs['edge_mode_shapes'][0,:])
+            fst_vt['ElastoDynBlade']['BldFl1Sh'][i] = inputs['blade:flap_mode_shapes'][0,i] / sum(inputs['blade:flap_mode_shapes'][0,:])
+            fst_vt['ElastoDynBlade']['BldFl2Sh'][i] = inputs['blade:flap_mode_shapes'][1,i] / sum(inputs['blade:flap_mode_shapes'][1,:])
+            fst_vt['ElastoDynBlade']['BldEdgSh'][i] = inputs['blade:edge_mode_shapes'][0,i] / sum(inputs['blade:edge_mode_shapes'][0,:])
 
         # if flap/other mode shapes are all 0s, then the DOF should be disabled because they were not calculated
         if all(np.isnan(fst_vt['ElastoDynBlade']['BldFl1Sh'])):
