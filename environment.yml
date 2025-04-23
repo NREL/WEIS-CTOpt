@@ -19,6 +19,7 @@ dependencies:
   - rosco>=2.9.7
   - smt
   - wisdem==3.20.1
+  - h5py
   - pip:
     - dash-bootstrap-components
     - dash-mantine-components
@@ -27,6 +28,7 @@ dependencies:
     - dearpygui
     - openfast_io
     - marmot-agents
+    - juliacall
 # Needs to be done outside of environment file:
 #  - m2w64-toolchain # [win]
 #  - libpython # [win]
