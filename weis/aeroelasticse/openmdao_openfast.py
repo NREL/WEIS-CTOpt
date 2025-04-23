@@ -821,7 +821,7 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['MoorDyn'] = {}
         fst_vt['MAP'] = {}
         fst_vt['BeamDyn'] = {}
-        fst_vt['BeamDynBlade'] = {}
+        # fst_vt['BeamDynBlade'] = {}
         
         # List of structural controllers
         fst_vt['TStC'] = {}; fst_vt['TStC'] = []
