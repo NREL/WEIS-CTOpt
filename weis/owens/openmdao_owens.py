@@ -10,9 +10,11 @@ from openfast_io import FileTools
 from weis.glue_code.mpi_tools              import MPI
 from pCrunch import FatigueParams, AeroelasticOutput, Crunch
 # Juliacall for OWENS
-from juliacall import convert
-from juliacall import Main as jl
-from juliacall import Pkg as jlPkg
+try:
+    from juliacall import Main as jl
+    from juliacall import Pkg as jlPkg
+except:
+    print("Juliacall not installed. Please install it to use OWENS.")
 from weis.owens.OWENS_output_reader import *
 from collections import OrderedDict
 
