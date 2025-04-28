@@ -1019,6 +1019,9 @@ class WindPark(om.Group):
             self.connect('blade.fatigue.sparL_wohlerexp', 'owens.blade_sparL_wohlerexp')
             self.connect('blade.fatigue.sparL_wohlerA', 'owens.blade_sparL_wohlerA')
 
+            self.connect('control.V_in',                    'owens.V_cutin')
+            self.connect('control.V_out',                   'owens.V_cutout')
+            self.connect('configuration.turb_class',        'owens.turbulence_class')
             # connect environment
             if modeling_options["flags"]["marine_hydro"]:
                 self.connect("env.rho_water", "owens.rho")

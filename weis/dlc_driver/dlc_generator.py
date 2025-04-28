@@ -166,6 +166,7 @@ class DLCGenerator(object):
         self.fix_wind_seeds         = True
         self.fix_wave_seeds         = True
         self.MHK                    = False
+        self.OWENS                  = False
 
         # Optional population of class attributes from key word arguments
         for (k, w) in kwargs.items():
@@ -198,6 +199,7 @@ class DLCGenerator(object):
 
         # Init openfast case list
         self.openfast_case_inputs = []
+        self.owens_case_inputs = []
 
         # Metocean conditions
         self.metocean = metocean    # save all initial metocean inputs
@@ -463,7 +465,10 @@ class DLCGenerator(object):
         self.add_user_groups(generic_case_inputs, dlc_options)
 
         # Generate case list
-        generic_case_list = self.gen_case_list(dlc_options,met_options,generic_case_inputs)
+        if self.OWENS:
+            generic_case_list = self.gen_case_list_owens(dlc_options,met_options,generic_case_inputs)
+        else:
+            generic_case_list = self.gen_case_list(dlc_options,met_options,generic_case_inputs)
 
         # DLC specific: Make idlc for other parts of WEIS (mostly turbsim generation)
         for _, case in enumerate(generic_case_list):
@@ -600,6 +605,43 @@ class DLCGenerator(object):
 
         case_inputs_openfast = self.map_generic_to_openfast(generic_case_inputs, comb_options)
         self.openfast_case_inputs.append(case_inputs_openfast)
+        return generic_case_list
+    
+    def gen_case_list_owens(self,dlc_options, met_options, generic_case_inputs):
+        '''
+        Generate case list from generic_case_inputs
+        TODO: this whole thing could be moved into generate_cases, thoughts?
+        '''
+
+        # Combine
+        comb_options = combine_options(dlc_options,met_options)
+
+        # Check that all inputs are valid options
+        all_inputs = sum(generic_case_inputs, [])
+        for input in all_inputs:
+            if not input in comb_options:
+                raise Exception(f'The desired input {input} is not defined. Options include {comb_options.keys()}')
+            
+            if len(comb_options[input]) == 0:
+                raise Exception(f'The input {input} is empty.')
+
+        # Setup generic cross product of inputs: 
+        gen_case_inputs = {}
+        for i_group, group in enumerate(generic_case_inputs):
+            first_array_len = len(comb_options[group[0]])
+            for input in group:
+                
+                # Check that all inputs are of equal length
+                if len(comb_options[input]) != first_array_len:
+                    raise Exception(f'The input options in group {i_group} are not equal.  This group contains: {group}')
+
+                gen_case_inputs[input] = {'vals': comb_options[input], 'group': i_group}
+            
+        # Generate generic case list
+        generic_case_list, _ = CaseGen_General(gen_case_inputs,save_matrix=False)
+
+        # case_inputs_openfast = self.map_generic_to_openfast(generic_case_inputs, comb_options)
+        self.owens_case_inputs.append(generic_case_list)
         return generic_case_list
 
     def gen_met_options(self, dlc_options, sea_state='normal'):
