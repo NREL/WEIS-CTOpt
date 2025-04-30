@@ -58,6 +58,7 @@ The installation instructions below use the environment name, "weis-env," but an
 2. If you are NOT on Kestrel, add in final packages and install the software
 
         conda install -y petsc4py=3.22.2 mpi4py pyoptsparse     # (Mac / Linux only, sometimes Windows users may need to install mpi4py)
+        pip install https://github.com/dzalkind/WISDEM/archive/ctopt.zip   # custom version of WISDEM for MHK turbines
         pip install -e .
 
 3. If you are on Kestrel, do:
