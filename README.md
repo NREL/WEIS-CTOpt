@@ -15,23 +15,25 @@ See local documentation in the `docs`-directory or access the online version at 
 
 ## Packages
 
-WEIS integrates in a unique workflow four models:
+WEIS-CTOpt integrates in a unique workflow four models:
 * [WISDEM](https://github.com/WISDEM/WISDEM) is a set of models for assessing overall wind plant cost of energy (COE).
 * [OpenFAST](https://github.com/OpenFAST/openfast) is the community model for wind turbine simulation to be developed and used by research laboratories, academia, and industry.
 * [TurbSim](https://www.nrel.gov/docs/fy09osti/46198.pdf) is a stochastic, full-field, turbulent-wind simulator.
 * [ROSCO](https://github.com/NREL/ROSCO) provides an open, modular and fully adaptable baseline wind turbine controller to the scientific community.
+* [OWENS](https://github.com/sandialabs/OWENS.jl) is an ontology, or way of coupling modular aerodynamic, structural, hydrodynamic, and controls packages.
 
 In addition, three external libraries are added:
 * [pCrunch](https://github.com/NREL/pCrunch) is a collection of tools to ease the process of parsing large amounts of OpenFAST output data and conduct loads analysis.
 * [pyOptSparse](https://github.com/mdolab/pyoptsparse) is a framework for formulating and efficiently solving nonlinear constrained optimization problems.
 
-The core WEIS modules are:
+The core WEIS-CTOpt modules are:
  * _aeroelasticse_ is a wrapper to call [OpenFAST](https://github.com/OpenFAST/openfast)
  * _control_ contains the routines calling [ROSCO](https://github.com/NREL/ROSCO) and the routines supporting distributed aerodynamic control devices, such trailing edge flaps
  * _gluecode_ contains the scripts glueing together all models and libraries
  * _multifidelity_ contains the codes to run multifidelity design optimizations
  * _optimization_drivers_ contains various optimization drivers
  * _schema_ contains the YAML files and corresponding schemas representing the input files to WEIS
+ * _owens_ is a wrapper to call [OWENS](https://github.com/sandialabs/OWENS.jl)
 
 ## Installation
 
@@ -48,8 +50,8 @@ The installation instructions below use the environment name, "weis-env," but an
 
         conda config --add channels conda-forge
         conda install git
-        git clone https://github.com/WISDEM/WEIS.git
-        cd WEIS
+        git clone https://github.com/NREL/WEIS-CTOpt.git
+        cd WEIS-CTOpt
         git checkout branch_name                         # (Only if you want to switch branches, say "develop")
         conda env create --name weis-env -f environment.yml
         conda activate weis-env                          # (if this does not work, try source activate weis-env)
@@ -67,6 +69,13 @@ The installation instructions below use the environment name, "weis-env," but an
         module unload gcc
         pip install --no-deps -e . -v
 
+4. If you want to model and optimize crossflow turbine (Tested on Mac / Linux only):
+
+        curl -fsSL https://install.julialang.org | sh       # Or if julia is downloaded and installed manually, export the PATH to julia. 
+        python examples/06_owens_opt/installation.py       # activate your weis environment before this
+        conda uninstall hdf5       # If you get errors complaining about hdf5 when you run the example and you have hdf5 in your conda env
+        pip install h5py       # If you conda uninstall hdf5
+
 **NOTE:** To use WEIS again after installation is complete, you will always need to activate the conda environment first with `conda activate weis-env` (or `source activate weis-env`). On Kestrel, make sure to reload the necessary modules
 
 For Windows users, we recommend installing `git` and the `m264` packages in separate environments as some of the libraries appear to conflict such that WISDEM cannot be successfully built from source.  The `git` package is best installed in the `base` environment.
@@ -77,4 +86,4 @@ If you plan to contribute code to WEIS, please first consult the [developer guid
 
 ## Feedback
 
-For software issues please use <https://github.com/WISDEM/WEIS/issues>.  
+For software issues please use <https://github.com/NREL/WEIS-CTOpt/issues>.  
