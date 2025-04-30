@@ -10,7 +10,6 @@ design_variables:
         n_opt: 5
         index_start: 0
         index_end: 5
-        # max: 20.0
         max_decrease: 0.5
         max_increase: 1.5
       # rotor_radius_vawt:
@@ -21,6 +20,13 @@ design_variables:
       #   index_end: 1
       #   max_increase: 1.2
       #   # max: 20.0
+      # twist:
+      #   flag: True
+      #   n_opt: 5
+      #   index_start: 0
+      #   index_end: 5
+      #   max_decrease: 0.5
+      #   max_increase: 1.5
   control:
     tsr:
       flag: True

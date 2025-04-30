@@ -36,6 +36,7 @@ OWENS:
         verbosity: 2 # verbosity where 0 is nothing, 1 is warnings, 2 is summary outputs, 3 is detailed outputs, and 4 is everything
         VTKsaveName: "./vtk/windio" # Path and name of the VTK outputs, recommended to put it in its own folder (which it will automatically create if needed)
         aeroLoadsOn: 2 # Level of aero coupling 0 structures only, 1 no deformation passed to the aero, 2 two-way coupling, 1.5 last time step's deformations passed to this timesteps aero and no internal iteration.
+        write_intermediate_design: true # write intermediate design vtk files for the optimization
 
     OWENSAero_Options:
         Nslices: 20 # number of 3-D slices for the strip method to go from 2D to 3D considering curved deforming blades
@@ -68,7 +69,7 @@ OWENS:
 
 
 DLC_driver:
-    metocean_conditions: # Only user_probability is used in CT-OPT OWENS
+    metocean_conditions: # Only user_probability is used in CT-OPT OWENS for now
         current_speed: [0.5 , 0.75, 1.  , 1.25, 1.5 , 1.75, 2.  , 2.25, 2.5 , 2.75, 3.  , 3.25, 3.5 , 3.75, 4.  ]
         current_std: [0.05      , 0.04821429, 0.04642857, 0.04464286, 0.04285714, 0.04107143, 0.03928571, 0.0375    , 0.03571429, 0.03392857, 0.03214286, 0.03035714, 0.02857143, 0.02678571, 0.025     ]
         wave_height_NSS: [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]
@@ -89,7 +90,7 @@ DLC_driver:
         - DLC: "1.1"    
         #   n_seeds: 1
           transient_time: 0.0
-          current_speed: [1.2]
+          current_speed: [1.2] # multiple speed - [1.2, 2]
           analysis_time: 5.0
         #   ws_bin_size: 0.25 # Currently not used in CT-Opt OWENS
           turbsim_inputs: # Currently not used in CT-Opt OWENS

@@ -31,8 +31,6 @@ class OWENSUnsteadySetup(ExplicitComponent):
         self.options.declare("towerse_options")
         self.options.declare("strut_options")
         self.options.declare("opt_options")
-        # TODO: we can add an option here to output the intermediate yaml file, like
-        # self.options.declare("owens_yaml")
 
     def setup(self):
         self.modopt = self.options['modeling_options']
@@ -65,7 +63,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Initialize directory
         self.OWENS_dir_base = self.modopt["OWENS"]["general"]["run_path"]
         if not os.path.isabs(self.OWENS_dir_base):
-            OWENS_dir_base = os.path.join(os.getcwd(), self.OWENS_dir_base)
+            self.OWENS_dir_base = os.path.join(os.getcwd(), self.OWENS_dir_base)
 
         if MPI:
             rank = MPI.COMM_WORLD.Get_rank()
@@ -268,10 +266,10 @@ class OWENSUnsteadySetup(ExplicitComponent):
 
     def setup_partials(self):
         # This can be set analytically from julia AD
-        self.declare_partials("power", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
-        self.declare_partials("lcoe", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
-        self.declare_partials("SF", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
-        self.declare_partials("fatigue_damage", ["blade_chord_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("power", ["blade_chord_values", "blade_twist_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("lcoe", ["blade_chord_values", "blade_twist_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("SF", ["blade_chord_values", "blade_twist_values", "blade_ref_axis", "tsr"], method="fd")
+        self.declare_partials("fatigue_damage", ["blade_chord_values", "blade_twist_values", "blade_ref_axis", "tsr"], method="fd")
 
     def compute(self, inputs, outputs,  discrete_inputs, dicrete_outputs):
         modopt = self.options["modeling_options"]
@@ -746,7 +744,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         owens_modeling_options["OWENS_Options"]["VTKsaveName"] = self.modopt["OWENS"]["general"]["VTKsaveName"]
         owens_modeling_options["OWENS_Options"]["aeroLoadsOn"] = self.modopt["OWENS"]["general"]["aeroLoadsOn"]
 
-
+        # Below are hard coded for now. They should be modified when the turbulence DLCs are finalized.
         owens_modeling_options["DLC_Options"] = {}
         owens_modeling_options["DLC_Options"]["IEC_std"] = r"'\"1-ED3\"'"
         owens_modeling_options["DLC_Options"]["WindChar"] = r"'\"A\"'"
@@ -780,12 +778,31 @@ class OWENSUnsteadySetup(ExplicitComponent):
                 URef[i_case] = case_inputs.URef
                 owens_modeling_options["DLC_Options"]["Vref"] = case_inputs.URef
                 owens_modeling_options["DLC_Options"]["Vdesign"] = case_inputs.URef
+                owens_modeling_options["DLC_Options"]["Vinf_range"] = [case_inputs.URef]
+
                 self.run_owens_steady(inputs, owens_modeling_options, case_inputs)
 
                 # Parse outputs using h5 files
                 # Not sure why OWENS replace the last 3 characters of the output file name with .h5
                 output_path = os.path.join(self.OWENS_run_dir,self.modopt["OWENS"]["general"]["dataOutputFilename"][:-3]+"h5")
-                output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "topDamage_blade_L", "topDamage_tower_U", "topDamage_tower_L" , "SF_ult_U", "SF_ult_L", "SF_ult_TU", "SF_ult_TL", "stress_U", "stress_L", "stress_TU", "stress_TL"])
+                output_h5 = OWENSOutput(output_path, output_channels=["t", "FReactionHist", "OmegaHist", "massOwens", "topDamage_blade_U", "topDamage_blade_L", "topDamage_tower_U", "topDamage_tower_L" , "SF_ult_U", "SF_ult_L", "SF_ult_TU", "SF_ult_TL", "stress_U", "stress_L", "stress_TU", "stress_TL"]) 
+                # A full list of output channels can be found in the fileio.jl file in OWENS
+                # FReactionHist is reaction force history
+                # omegaHist is rotor speed history
+                # massOwens is the mass of the system
+                # topDamage_blade_U is the fatigue damage of the blade upper surface
+                # topDamage_blade_L is the fatigue damage of the blade lower surface
+                # topDamage_tower_U is the fatigue damage of the tower upper surface
+                # topDamage_tower_L is the fatigue damage of the tower lower surface
+                # SF_ult_U is the ultimate safety factor of the blade upper surface
+                # SF_ult_L is the ultimate safety factor of the blade lower surface
+                # SF_ult_TU is the ultimate safety factor of the tower upper surface
+                # SF_ult_TL is the ultimate safety factor of the tower lower surface
+                # stress_U is the stress of the blade upper surface
+                # stress_L is the stress of the blade lower surface
+                # stress_TU is the stress of the tower upper surface
+                # stress_TL is the stress of the tower lower surface
+                # Although genTorque and genPower are in the output channels, they required the implementation and use of a generator function to have valid output. That's why in this example the power is computed from the reaction force history and rotor speed history.
                 massOwens = output_h5["massOwens"]
                 omegaHist = output_h5["OmegaHist"]
                 FReactionHist = output_h5["FReactionHist"]
@@ -912,7 +929,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         # Run OWENS
 
         owens_modeling_options["OWENS_Options"]["numTS"] = int(case.total_time/self.modopt["OWENS"]["general"]["delta_t"])
-        owens_modeling_options["DLC_Options"]["Vinf_range"] = [case.URef]
+    
         # These will be determined by DLC generator
         if case.transient_time > 0:
             owens_modeling_options["OWENS_Options"]["Prescribed_Vinf_time_controlpoints"] = [0.0, case.transient_time,  case.total_time]
@@ -927,7 +944,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         FileTools.save_yaml(outdir=self.OWENS_run_dir, fname=f"OWENS_Opt_U{case.URef}.yml", data_out=owens_modeling_options)
         
         # update vtk output dir
-        owens_modeling_options["OWENS_Options"]["VTKsaveName"] = os.path.join(self.OWENS_run_dir,f"vtk_{self.design_counter:03d}_U{case.URef}","windio")
+        if self.modopt["OWENS"]["general"]["write_intermediate_design"]:
+            owens_modeling_options["OWENS_Options"]["VTKsaveName"] = os.path.join(self.OWENS_run_dir,f"vtk_{self.design_counter:03d}_U{case.URef}","windio")
 
         
         if self.modopt["OWENS"]["general"]["controlStrategy"] == "tsrTracking":

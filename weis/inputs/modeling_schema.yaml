@@ -1102,14 +1102,6 @@ properties:
                 type: object
                 default: {}
                 properties:
-                    OWENS_project_path: 
-                        type: string
-                        default: none
-                        desciption: Path to OWENS project
-                    master_input:
-                        type: string
-                        default: nothing
-                        desciption: A OWENS mater input file for initialization
                     run_path:
                         type: string
                         default: nothing
@@ -1164,35 +1156,19 @@ properties:
                     VTKsaveName:
                         type: string
                         default: ./vtk/windio
-                        desciption: Path and name of the VTK outputs, recommended to put it in its own folder (which it will automatically create if needed)
+                        desciption: Path and name of the VTK outputs, recommended to put it in its own folder (which it will automatically create if needed). It will be overwritten if write_intermediate_design is true.
                     aeroLoadsOn:
                         type: integer
                         default: 2
                         description: Level of aero coupling 0 structures only, 1 no deformation passed to the aero, 2 two-way coupling, 1.5 last time step's deformations passed to this timesteps aero and no internal iteration
-                    Prescribed_RPM_time_controlpoints:
-                        type: array
-                        default: [0.0,100000.1]
-                        description: If controlStrategy is "fixedRPM", array of time control points for the internal spline
-                    Prescribed_RPM_RPM_controlpoints:
-                        type: array
-                        default: [17.2,17.2]
-                        desciption: If controlStrategy is "fixedRPM", array of RPM control points for the internal spline
-                    Prescribed_Vinf_time_controlpoints:
-                        type: array
-                        default: [0.0,100000.1]
-                        desciption: If AeroModel is "DMS" or "AC, and ifw is false, array of time control points for the internal spline
-                    Prescribed_Vinf_Vinf_controlpoints:
-                        type: array
-                        default: [17.2,17.2]
-                        desciption: If AeroModel is "DMS" or "AC, and ifw is false, array of Vinf control points for the internal spline
-                    numTS:
-                        type: integer
-                        default: 1
-                        description: Total number of time steps
                     delta_t:
                         type: number
                         default: 0.01
                         description: Time step, in seconds
+                    write_intermediate_design:
+                        type: boolean
+                        default: false
+                        description: Write intermediate design point vtks to the output folder
                     # turbineType:
                     #     type: string
                     #     default: Darrieus #Darrieus, H-VAWT, ARCUS
@@ -1205,10 +1181,6 @@ properties:
                         type: array
                         default: ["none"]
                         description: name of DLC 
-                    Vinf_range: 
-                        type: array
-                        default: [17.2]
-                        description: inflow Cutin to cutout and discretization
                     IEC_std:
                         type: string
                         default: 1-ED3
@@ -1237,14 +1209,6 @@ properties:
                         type: integer
                         default: 6
                         description: turbsim horizontal discretizations
-                    Vref:
-                        type: number
-                        default: 0.0
-                        description: reference/nominal wind speed m/s for turbsim or other inflow wind input file (depending on which DLC is selected)
-                    Vdesign:
-                        type: number
-                        default: 1.0
-                        description: Design or rated speed of turbine, used for certain DLC cases
                     grid_oversize:
                         type: number
                         default: 0.1
@@ -1825,7 +1789,7 @@ properties:
             SeaState: &ofseastate
                 type: object
                 default: {}
-                description: ServoDyn modelling options in OpenFAST
+                description: SeaState modelling options in OpenFAST
                 properties:
                     Echo:
                         type: boolean
