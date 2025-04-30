@@ -134,6 +134,7 @@ OpenFAST: # Options for WEIS fidelity level 3 = nonlinear time domain
 RAFT:
     flag: True
     potential_model_override: 0
+    plot_designs: True
     trim_ballast: 0
     heave_tol: 1
     save_designs: True
