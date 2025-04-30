@@ -23,7 +23,6 @@ WISDEM:
 OWENS:
     flag: True
     general:
-        OWENS_project_path: /Users/yliao/miniconda3/envs/test_owens/julia_env/Project.toml # Use the path to the project.toml file in the julia environment
         run_path: /Users/yliao/repos/WEIS-CTOpt/examples/06_owens_opt # points to the data folders
         analysisType: "Unsteady" # Unsteady, DLC, Campbell, todo: steady, flutter may be re-activated in the future.
         AeroModel: "DMS" # OWENSAero model "DMS" for double multiple streamtube or "AC" for actuator cylinder, or "AD" for aerodyn

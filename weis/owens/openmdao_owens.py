@@ -40,15 +40,13 @@ class OWENSUnsteadySetup(ExplicitComponent):
         rotorse_options = self.options["rotorse_options"]
         towerse_options = self.options["towerse_options"]
         strut_options = self.options["strut_options"]
-        OWENS_path = self.modopt["OWENS"]["general"]["OWENS_project_path"]
 
         # set up an counter for output files
         self.design_counter = 0
 
-
-        jlPkg.activate(OWENS_path)
+        # jl.seval("println(Base.active_project())") # Print out the current project path
         jl.seval("using OWENS")
-
+        
 
         self.n_span = rotorse_options["n_span"]
         self.n_layers = rotorse_options["n_layers"]
