@@ -72,6 +72,7 @@ The installation instructions below use the environment name, "weis-env," but an
 4. If you want to model and optimize crossflow turbine (Tested on Mac / Linux only):
 
         curl -fsSL https://install.julialang.org | sh       # Or if julia is downloaded and installed manually, export the PATH to julia. 
+        module load julia        # If on Kestrel
         python examples/06_owens_opt/installation.py       # activate your weis environment before this
         conda uninstall hdf5       # If you get errors complaining about hdf5 when you run the example and you have hdf5 in your conda env
         pip install h5py       # If you conda uninstall hdf5
