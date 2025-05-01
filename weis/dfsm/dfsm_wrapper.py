@@ -9,12 +9,12 @@ import shutil
 
 from rosco.toolbox import control_interface as ROSCO_ci
 from weis.aeroelasticse.CaseGen_General import case_naming
-from weis.aeroelasticse.FAST_writer         import InputWriter_OpenFAST
-from pCrunch.io import OpenFASTOutput
-from pCrunch import LoadsAnalysis, PowerProduction, FatigueParams
+from openfast_io.FAST_writer         import InputWriter_OpenFAST
+# from pCrunch.io import OpenFASTOutput
+# from pCrunch import LoadsAnalysis, PowerProduction, FatigueParams
 from weis.dlc_driver.dlc_generator    import DLCGenerator
-from weis.aeroelasticse.turbsim_file   import TurbSimFile
-from weis.aeroelasticse.turbsim_util import generate_wind_files
+from openfast_io.turbsim_file   import TurbSimFile
+from weis.aeroelasticse.utils import generate_wind_files
 from weis.aeroelasticse.CaseGen_General import CaseGen_General
 
 from weis.dfsm.simulation_details import SimulationDetails
