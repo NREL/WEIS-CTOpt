@@ -35,7 +35,7 @@ Level3: # Options for WEIS fidelity level 3 = nonlinear time domain
     flag: False
     from_openfast: True
     openfast_file: MHK_RM1_Floating.fst
-    openfast_dir: ../01_aeroelasticse/OpenFAST_models/RM1
+    openfast_dir: ../00_setup/OpenFAST_models/MHK_RM1
     simulation:
         DT: 0.005
         CompElast: 1
@@ -133,7 +133,7 @@ DFSM:
     
 ROSCO:
     flag: True
-    tuning_yaml: ../01_aeroelasticse/OpenFAST_models/RM1/RM1_MHK.yaml
+    tuning_yaml: ../00_setup/RM1_MHK.rosco.yaml
     PRC_Mode: 0
     Fl_Mode: 2
 
