@@ -38,6 +38,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         rotorse_options = self.options["rotorse_options"]
         towerse_options = self.options["towerse_options"]
         strut_options = self.options["strut_options"]
+        opt_options = self.options["opt_options"]
 
         # set up an counter for output files
         self.design_counter = 0
@@ -61,7 +62,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
         n_webs_strut = strut_options["n_webs"]
 
         # Initialize directory
-        self.OWENS_dir_base = self.modopt["OWENS"]["general"]["run_path"]
+        self.OWENS_dir_base = opt_options['general']['folder_output']
         if not os.path.isabs(self.OWENS_dir_base):
             self.OWENS_dir_base = os.path.join(os.getcwd(), self.OWENS_dir_base)
 
@@ -76,6 +77,8 @@ class OWENSUnsteadySetup(ExplicitComponent):
         if not os.path.exists(self.OWENS_run_dir):
             os.makedirs(self.OWENS_run_dir, exist_ok=True)
 
+        # path to parent folder of airfoils folder
+        self.data_path = self.modopt["OWENS"]["general"]["run_path"]
 
 
         # Blade inputs, geometry and discretization
@@ -956,7 +959,7 @@ class OWENSUnsteadySetup(ExplicitComponent):
             # print("TSR is: ", TSR)
 
 
-        jl.OWENS.runOWENSWINDIO(os.path.join(self.OWENS_run_dir,f"OWENS_Opt_U{case.URef}.yml"), os.path.join(self.OWENS_run_dir,"data.yml"),self.OWENS_dir_base)
+        jl.OWENS.runOWENSWINDIO(os.path.join(self.OWENS_run_dir,f"OWENS_Opt_U{case.URef}.yml"), os.path.join(self.OWENS_run_dir,"data.yml"),self.data_path)
 
 
 

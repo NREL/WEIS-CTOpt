@@ -1102,10 +1102,10 @@ properties:
                 type: object
                 default: {}
                 properties:
-                    run_path:
+                    data_path:
                         type: string
                         default: nothing
-                        desciption: Points to the data folders
+                        desciption: Points to the data (airfoils and others) folders
                     analysisType:
                         type: string
                         default: unsteady # unsteady, steady, modal
