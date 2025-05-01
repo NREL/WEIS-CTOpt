@@ -7,10 +7,12 @@ General:
         save_iterations: True
         use_exe: True
         
-
+        
 WISDEM:
     RotorSE:
-        flag: True
+        flag: False
+        n_pitch_perf_surfaces: 5
+        n_tsr_perf_surfaces: 5
         spar_cap_ss: Spar_Cap_SS
         spar_cap_ps: Spar_Cap_PS
         te_ss: TE_reinforcement_SS
@@ -18,15 +20,15 @@ WISDEM:
         frame3dd:
             flag: False
     TowerSE:
-        flag: True
+        flag: False
         frame3dd:
             flag: False
     DriveSE:
-        flag: True
+        flag: False
         frame3dd:
             flag: False
     FloatingSE:
-        flag: True
+        flag: False
         rank_and_file: True
         symmetric_moorings: False
         frame3dd:
@@ -35,12 +37,15 @@ WISDEM:
     #     flag: True
 
 OWENS:
-    flags: True
+    flags: False
     path_to_owens_dir: path
     
 
 OpenFAST: # Options for WEIS fidelity level 3 = nonlinear time domain
     flag: True
+    from_openfast: True
+    openfast_file: MHK_RM1_Floating.fst
+    openfast_dir: ../01_aeroelasticse/OpenFAST_models/RM1
     simulation:
         DT: 0.01
         CompElast: 1
