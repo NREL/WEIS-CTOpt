@@ -801,15 +801,16 @@ class FASTLoadCases(ExplicitComponent):
                             # TODO: pull chan_time out of here
 
             elif (modopt['DFSM']['flag']):
-
+                
                 mpi_options = {}
                 mpi_options['mpi_run'] = modopt['General']['openfast_configuration']['mpi_run']
                 if mpi_options['mpi_run']:
                     mpi_options['mpi_comm_map_down'] = modopt['General']['openfast_configuration']['mpi_comm_map_down']
                 
                 # Call DFSM wrapper
-                summary_stats, extreme_table, DELs, Damage,case_list,case_name, chan_time,dlc_generator,TMax,TStart = dfsm_wrapper(fst_vt, modopt, inputs, discrete_inputs,self.FAST_runDirectory,self.FAST_namingOut,mpi_options)
+                cruncher,case_list,case_name,chan_time,dlc_generator,TMax,TStart = dfsm_wrapper(fst_vt, modopt, inputs, discrete_inputs,self.FAST_runDirectory,self.FAST_namingOut,mpi_options)
                 self.fst_vt = fst_vt
+                self.cruncher = cruncher
                 self.of_inumber = self.of_inumber + 1
                 self.TMax = TMax;self.TStart = TStart
 

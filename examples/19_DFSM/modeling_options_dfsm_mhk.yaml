@@ -124,7 +124,7 @@ DFSM:
         reqd_controls: [RtVAvgxh,GenTq,BldPitch1,Wave1Elev]
         reqd_outputs: [TwrBsFxt,TwrBsMyt,YawBrTAxp,NcIMURAys,GenPwr,RtFldCt,RtFldCp] #,RtFldCt,RtFldCp
         scale_args:
-            state_scaling_factor: [1,1,1]
+            state_scaling_factor: [1,1,100]
         filter_args:
             state_filter_flag: [True,True,True]
             state_filter_type: [[filtfilt],[filtfilt],[filtfilt]]
