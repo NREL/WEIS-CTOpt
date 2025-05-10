@@ -16,15 +16,17 @@ from weis.dfsm.wrapper_LTI import wrapper_LTI
 
 from numpy.linalg import lstsq
 
-from weis.dfsm.dfsm_rosco_simulation import run_sim_ROSCO
 
 import matlab.engine
+
+# path to this directory
+this_dir = os.path.dirname(os.path.abspath(__file__))
 
 def ModelData():
     
     model_data = {}
 
-    datapath = '/home/athulsun/DFSM/data'
+    datapath = this_dir + os.sep + 'outputs' 
 
     # path to openfast simulation
     model_data['datapath'] = datapath + os.sep + 'RM1_train'
@@ -213,7 +215,7 @@ if __name__ == '__main__':
             x0 = matlab.double([])
             
             t1 = timer.time()
-            A,B,C,D,x = eng.construct_DFSM_matlab(x0,n_var,ns2,nc_,ny_,inputs_md,state_dx_md,outputs_md,model_data['buff'],nargout = 5)
+            A,B,C,D,x = eng.construct_LPV(x0,n_var,ns2,nc_,ny_,inputs_md,state_dx_md,outputs_md,model_data['buff'],nargout = 5)
             t2 = timer.time()
                 
         else:
@@ -221,7 +223,7 @@ if __name__ == '__main__':
             x0 = matlab.double(X_array[iw-1])
 
             t1 = timer.time()
-            A,B,C,D,x = eng.construct_DFSM_matlab(x0,n_var,ns2,nc_,ny_,inputs_md,state_dx_md,outputs_md,model_data['buff'],nargout = 5)
+            A,B,C,D,x = eng.construct_LPV(x0,n_var,ns2,nc_,ny_,inputs_md,state_dx_md,outputs_md,model_data['buff'],nargout = 5)
             t2 = timer.time()
 
             
@@ -272,7 +274,7 @@ if __name__ == '__main__':
         x0 = matlab.double(X_array[iw+1])
         
         t1 = timer.time()
-        A,B,C,D,x = eng.construct_DFSM_matlab(x0,n_var,ns2,nc_,ny_,inputs_md,state_dx_md,outputs_md,model_data['buff'],nargout = 5)
+        A,B,C,D,x = eng.construct_LPV(x0,n_var,ns2,nc_,ny_,inputs_md,state_dx_md,outputs_md,model_data['buff'],nargout = 5)
         t2 = timer.time()
 
         model_construct_time[iw] = t2-t1
@@ -330,6 +332,17 @@ if __name__ == '__main__':
     dfsm.scaler_outputs = None
     dfsm.nonlin_deriv = np.array([None])
     dfsm.nonlin_outputs = np.array([None])
+
+    dfsm.reqd_states = reqd_states
+    dfsm.reqd_controls = reqd_controls
+    dfsm.reqd_outputs = reqd_outputs
+    dfsm.scale_args = scale_args
+    dfsm.filter_args = filter_args
+    dfsm.w_start = w_start
+    dfsm.buff = model_data['buff']
+    dfsm.tmin = tmin
+    dfsm.train_inds = train_inds
+    dfsm.model_construct_time = model_construct_time
 
 
 

@@ -1,5 +1,5 @@
 general:
-    folder_output: outputs/RM1_test
+    folder_output: outputs/RM1_dfsm
     fname_output: iea15mw
 
 design_variables:
