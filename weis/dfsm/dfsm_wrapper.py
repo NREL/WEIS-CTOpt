@@ -497,17 +497,41 @@ def dfsm_wrapper(fst_vt, modopt, inputs, discrete_inputs, FAST_runDirectory = No
         # initialize random number generator
         rng = np.random.default_rng(12345)
 
+        wv_files = []
+
         for i_case,case in enumerate(case_list):
             
             ts_file_     = TurbSimFile(case[('InflowWind','FileName_BTS')])
             rot_avg = compute_rot_avg(ts_file_['u'],ts_file_['y'],ts_file_['z'],ts_file_['t'],rotorD,hub_height)
             u_h         = rot_avg[0,:]
-            tt          = ts_file_['t']
+            t          = ts_file_['t']
             dt = tt[1]-tt[0]
             
-            eta = generate_wave_elev(tt,dlc_generator.cases[i_case].wave_height,dlc_generator.cases[i_case].wave_period,rng)
+            if fst_vt['SeaState']['WaveMod'] == 5:
+                DT = fst_vt['SeaState']['WaveDT']
+                tmax_ss = fst_vt['SeaState']['WaveTMax']
 
-            test_dataset.append({'time':tt, 'wind_speed': u_h,'wave_elev':eta})
+                tt = np.arange(0,tmax_ss + DT,DT)
+
+                eta = generate_wave_elev(tt,dlc_generator.cases[i_case].wave_height,dlc_generator.cases[i_case].wave_period,rng)
+                c_name = case_name[i_case]
+                wvkinfile = FAST_runDirectory + os.sep + c_name +'_Wave.Elev'
+                wvkinfile1 = FAST_runDirectory + os.sep + c_name +'_Wave'
+                wv_files.append(wvkinfile1)
+
+                with open(wvkinfile, 'w') as file:
+                    file.write('Time Wave1Elev\n')  # Write the header
+                    for t_, elev in zip(tt, eta):
+                        file.write(f'{t_:.6f} {elev:.6f}\n')
+
+                eta = CubicSpline(tt,eta)(t)
+
+            else:
+                
+                eta = generate_wave_elev(t,dlc_generator.cases[i_case].wave_height,dlc_generator.cases[i_case].wave_period,rng)
+
+            dt = fst_vt['Fst']['DT']
+            test_dataset.append({'time':t, 'wind_speed': u_h,'wave_elev':eta})
 
         # number of test cases
         test_ind = np.arange(len(case_list))
@@ -516,7 +540,17 @@ def dfsm_wrapper(fst_vt, modopt, inputs, discrete_inputs, FAST_runDirectory = No
         # This step generates the DISCON.IN and cp-ct-cq.txt files which are need to run closed-loop simulations
         
         for case in case_name:
-            write_FAST_files(fst_vt, FAST_runDirectory, case)
+            fst_vt['InflowWind']['WindType'] = case_list[i_case][('InflowWind','WindType')]
+            fst_vt['InflowWind']['FileName_BTS'] = case_list[i_case][('InflowWind','FileName_BTS')]
+            fst_vt['InflowWind']['WindType'] = case_list[i_case][('InflowWind','WindType')]
+            
+            if fst_vt['SeaState']['WaveMod'] == 5:
+                fst_vt['SeaState']['WvKinFile'] = wv_files[i_case]
+                write_FAST_files(fst_vt, FAST_runDirectory, case)
+
+            else:
+
+                write_FAST_files(fst_vt, FAST_runDirectory, case)
         
         case_names = case_naming(len(case_name),'dfsm')
 

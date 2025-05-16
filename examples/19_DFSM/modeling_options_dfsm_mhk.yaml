@@ -83,11 +83,11 @@ Level3: # Options for WEIS fidelity level 3 = nonlinear time domain
         NacCMyn: 0
         NacCMzn: -1.2
         TowerBsHt: -9
-    HydroDyn:
+    SeaState:
     #     WaveSeed1: 123456789
     #     WaveSeed2: 123456789
     #     AddBLin3: [0.0, 0.0,0.0, 0.0, 0.0, 0.0]
-        WaveMod: 2
+        WaveMod: 5
     #     WaveHs: 2.0
     #     WaveTp: 6.75
     #     WaveTMax: 600
