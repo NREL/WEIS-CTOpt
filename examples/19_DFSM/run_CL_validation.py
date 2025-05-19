@@ -21,8 +21,7 @@ from weis.dfsm.dfsm_utilities import valid_extension,calculate_MSE,compile_dfsm_
 
 from weis.glue_code.mpi_tools import MPI
 
-from pCrunch import LoadsAnalysis, PowerProduction, FatigueParams
-from pCrunch.io import OpenFASTOutput
+from pCrunch import Crunch, FatigueParams, AeroelasticOutput
 
 # plot properties
 markersize = 10
@@ -98,7 +97,7 @@ def run_serial(case_data_all):
 
 def run_mpi(case_data_all,mpi_options):
 
-    from mpi4py import MPI
+    from openmdao.utils.mpi import MPI
 
     # mpi comm management
     comm = MPI.COMM_WORLD
@@ -260,8 +259,8 @@ def run_closed_loop_simulation(dfsm,FAST_sim,dt,ode_algorithm,test_datapath,tran
     tf = tf - transition_time
     tspan = [t0,tf]
 
-    outlist_dfsm = []
-    outlist_of = []
+    ae_output_dfsm_list = []
+    ae_output_of_list = []
 
     for icase,sim_result in enumerate(sim_results):
 
@@ -420,71 +419,39 @@ def run_closed_loop_simulation(dfsm,FAST_sim,dt,ode_algorithm,test_datapath,tran
         # compile results from DFSM
         OutData_dfsm = compile_dfsm_results(time_dfsm,states_dfsm,controls_dfsm,outputs_dfsm,reqd_states,
                                         reqd_controls,reqd_outputs,53,transition_time)
-
-        # get output
-        output_dfsm = OpenFASTOutput.from_dict(OutData_dfsm,case_name_dfsm,magnitude_channels = magnitude_channels)
-
-        outlist_dfsm.append(output_dfsm)
-
+        
         # compile OpenFAST sim results
         OutData_of = compile_dfsm_results(time_of,states_of,controls_of,outputs_of,reqd_states,
                                         reqd_controls,reqd_outputs,53,transition_time)
 
+
         # get output
-        output_of = OpenFASTOutput.from_dict(OutData_of,case_name_of,magnitude_channels = magnitude_channels)
+        ae_output_dfsm = AeroelasticOutput(OutData_dfsm, dlc = 'dfsm_'+str(icase),  magnitude_channels = magnitude_channels,fatigue_channels = fatigue_channels )
+        ae_output_dfsm_list.append(ae_output_dfsm)
 
-        outlist_of.append(output_of)
+        # get output
+        ae_output_of = AeroelasticOutput(OutData_of, dlc = 'openfast_'+str(icase),  magnitude_channels = magnitude_channels,fatigue_channels = fatigue_channels )
+        ae_output_of_list.append(ae_output_of)
 
-    
-    # instantiate LA class for openfast and dfsm results
-    loads_analysis_of = LoadsAnalysis(
-            outputs = [],
-            magnitude_channels = magnitude_channels,
-            fatigue_channels = fatigue_channels
-        ) 
+    cruncher_of = Crunch(outputs = [],lean = True)
 
-    loads_analysis_dfsm = LoadsAnalysis(
-            outputs = [],
-            magnitude_channels = magnitude_channels,
-            fatigue_channels = fatigue_channels
-        )   
-    
-    # Collect outputs
-    ss = {}
-    et = {}
-    dl = {}
-    dam = {}
+    for output in ae_output_of_list:
+        cruncher_of.add_output(output)
 
-    for output in outlist_of:
-        _name, _ss, _et, _dl, _dam = loads_analysis_of._process_output(output)
-        ss[_name] = _ss
-        et[_name] = _et
-        dl[_name] = _dl
-        dam[_name] = _dam
+    cruncher_of.outputs = ae_output_of_list
 
-    summary_stats_of, extreme_table_of, DELs_of, Damage_of = loads_analysis_of.post_process(ss, et, dl, dam)
+    cruncher_dfsm = Crunch(outputs = [],lean = True)
 
-    # Collect outputs
-    ss = {}
-    et = {}
-    dl = {}
-    dam = {}
+    for output in ae_output_dfsm_list:
+        cruncher_dfsm.add_output(output)
 
-    for output in outlist_dfsm:
-        _name, _ss, _et, _dl, _dam = loads_analysis_dfsm._process_output(output)
-        ss[_name] = _ss
-        et[_name] = _et
-        dl[_name] = _dl
-        dam[_name] = _dam
+    cruncher_dfsm.outputs = ae_output_dfsm_list
 
-    summary_stats_dfsm, extreme_table_dfsm, DELs_dfsm, Damage_dfsm = loads_analysis_dfsm.post_process(ss, et, dl, dam)
+    results_dict = {'summary_stats_of':cruncher_of.summary_stats,
+                    'summary_stats_dfsm':cruncher_dfsm.summary_stats,
+                    'DELs_of':cruncher_of.dels,
+                    'DELs_dfsm':cruncher_dfsm.dels}
 
-    results_dict = {'sum_stats_of':summary_stats_of,
-                    'sum_stats_dfsm':summary_stats_dfsm,
-                    'DELs_of':DELs_of,
-                    'DELs_dfsm':DELs_dfsm
-                    }
-    
 
     results_file = plot_path +os.sep+ 'DFSM_validation_results.pkl'
 
@@ -522,7 +489,7 @@ if __name__ == '__main__':
         olaf = False
 
         # get mapping
-        comm_map_down, comm_map_up, color_map = map_comm_heirarchical(n_FD, n_OF_runs_parallel, openmp=olaf)
+        comm_map_down, comm_map_up, color_map = map_comm_heirarchical(n_FD, n_OF_runs_parallel)
 
         rank    = MPI.COMM_WORLD.Get_rank()
 
@@ -564,7 +531,7 @@ if __name__ == '__main__':
         #---------------------------------------------------
 
         # datapath
-        testpath = '/home/athulsun/DFSM/data/RM1_test' #<-------------------change this
+        testpath = this_dir + os.sep + 'outputs/RM1_test2' #<-------------------change this
 
         # get the path to all .outb files in the directory
         outfiles = [os.path.join(testpath,f) for f in os.listdir(testpath) if valid_extension(f)]

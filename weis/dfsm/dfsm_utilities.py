@@ -103,14 +103,21 @@ def compile_dfsm_results(time,states_dfsm,controls_dfsm,outputs_dfsm,state_names
     if not('PtfmSurge' in state_names):
         OutData['PtfmSurge'] = np.zeros((nt,))
 
+
     if not('PtfmSway' in state_names):
         OutData['PtfmSway'] = np.zeros((nt,))
+
+    if not('NcIMUTA' in output_names):
+        OutData['NcIMUTA'] = np.zeros((nt,))
 
     if not('RotSpeed' in output_names):
         OutData['RotSpeed'] = states_dfsm[time_ind,gs_ind]/GB_ratio
 
     for i_blade in range(2):
         OutData[f'dBldPitch{i_blade+1}'] = np.zeros((nt,))
+    
+    for i_blade in range(1):
+        OutData[f'BldPitch{i_blade+2}'] = OutData['BldPitch1']
 
     return OutData
 
