@@ -54,6 +54,7 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options,
             nFD = max([nFD, 1])
             comm_map_down, comm_map_up, color_map = map_comm_heirarchical(nFD, nOFp)
             rank    = MPI.COMM_WORLD.Get_rank()
+            
             if rank < len(color_map):
                 try:
                     color_i = color_map[rank]
@@ -62,7 +63,6 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options,
             else:
                 color_i = max(color_map) + 1
             comm_i  = MPI.COMM_WORLD.Split(color_i, 1)
-
     else:
         color_i = 0
         rank = 0
@@ -70,13 +70,14 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options,
     # make the folder_output relative to the input, if it's a relative path
     analysis_input_dir = os.path.dirname(opt_options['fname_input_analysis'])
     opt_options['general']['folder_output'] = os.path.join(analysis_input_dir,opt_options['general']['folder_output'])
-
+    
     folder_output = opt_options['general']['folder_output']
     if rank == 0 and not os.path.isdir(folder_output):
         os.makedirs(folder_output,exist_ok=True)
 
     if color_i == 0: # the top layer of cores enters, the others sit and wait to run openfast simulations
         # if MPI and opt_options['driver']['optimization']['flag']:
+        
         if MPI:
             if modeling_options['OpenFAST']['flag'] or modeling_options['OpenFAST_Linear']['flag']:
                 # Parallel settings for OpenFAST
@@ -88,7 +89,7 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options,
                     modeling_options['General']['openfast_configuration']['cores'] = nOFp
 
             # Parallel settings for OpenMDAO
-            if opt_options['driver']['design_of_experiments']['flag']:
+            if opt_options['driver']['design_of_experiments']['flag'] and not(modeling_options['DFSM']['flag']):
                 wt_opt = om.Problem(model=WindPark(modeling_options = modeling_options, opt_options = opt_options), reports=False)
             else:
                 wt_opt = om.Problem(model=om.Group(num_par_fd=nFD), comm=comm_i, reports=False)
