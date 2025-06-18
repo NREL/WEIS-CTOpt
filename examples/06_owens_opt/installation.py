@@ -15,4 +15,4 @@ juliapkg.add("OWENSOpenFAST_jll", "ac0e1b5c-a850-5466-8291-e142bbb8e693",url="ht
 juliapkg.add("OWENSOpenFASTWrappers", "1f4f357c-c864-4b71-8437-d48f9e1bb3e6",url="https://github.com/sandialabs/OWENSOpenFASTWrappers.jl.git", version="1.0.3")
 juliapkg.add("OWENSAero", "ac8500f8-acb1-479a-8630-5dcb97b7c093",url="https://github.com/sandialabs/OWENSAero.jl.git", version="1.0.1")
 juliapkg.add("OWENSFEA", "5906b1e7-6737-4278-91ec-d653c88addb4",url="https://github.com/sandialabs/OWENSFEA.jl.git", version="1.0.0")
-juliapkg.add("OWENS", "51d15398-4eaf-40f9-a029-79ae1c4a3867",url="https://github.com/sandialabs/OWENS.jl.git", version="1.0.3")
+juliapkg.add("OWENS", "51d15398-4eaf-40f9-a029-79ae1c4a3867",url="https://github.com/sandialabs/OWENS.jl.git", version="1.0.4")
