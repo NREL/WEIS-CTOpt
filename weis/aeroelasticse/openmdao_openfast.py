@@ -821,6 +821,7 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['MoorDyn'] = {}
         fst_vt['MAP'] = {}
         fst_vt['BeamDyn'] = {}
+        fst_vt['WaterKin'] = {}
         # fst_vt['BeamDynBlade'] = {}
         
         # List of structural controllers
@@ -1008,8 +1009,8 @@ class FASTLoadCases(ExplicitComponent):
         # The Twr2Shft is just the difference between hub height, tower top height, and sin(tilt)*overhang
         fst_vt['ElastoDyn']['Twr2Shft']  = float(inputs['hub_height']) - tower_top_height - abs(fst_vt['ElastoDyn']['OverHang'])*np.sin(np.deg2rad(inputs['tilt'][0]))
         # Flip Twr2Shft if floating MHK
-        if modopt['flags']['marine_hydro'] and modopt['flags']['floating']:
-            fst_vt['ElastoDyn']['Twr2Shft'] *= -1
+        # if modopt['flags']['marine_hydro'] and modopt['flags']['floating']:
+        #     fst_vt['ElastoDyn']['Twr2Shft'] *= -1
         fst_vt['ElastoDyn']['GenIner']   = float(inputs['GenIner'])
 
         # Mass and inertia inputs
@@ -1017,7 +1018,7 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['ElastoDyn']['TipMass(2)'] = 0.
         fst_vt['ElastoDyn']['TipMass(3)'] = 0.
 
-        tower_base_height = max(float(inputs['tower_base_height']), float(inputs["platform_total_center_of_mass"][2]))
+        tower_base_height = float(inputs['tower_base_height']) 
         fst_vt['ElastoDyn']['TowerBsHt'] = tower_base_height # Height of tower base above ground level [onshore] or MSL [offshore] (meters)
         fst_vt['ElastoDyn']['TowerHt']   = tower_top_height
 
@@ -1703,13 +1704,14 @@ class FASTLoadCases(ExplicitComponent):
             fst_vt['MoorDyn']['Name'] = fst_vt['MAP']['LineType'] = line_names
             fst_vt['MoorDyn']['Diam'] = fst_vt['MAP']['Diam'] = inputs["line_diameter"]
             fst_vt['MoorDyn']['MassDen'] = fst_vt['MAP']['MassDenInAir'] = inputs["line_mass_density"]
-            fst_vt['MoorDyn']['EA'] = inputs["line_stiffness"]
+            fst_vt['MoorDyn']['EA'] = [[k] for k in inputs["line_stiffness"]]
             fst_vt['MoorDyn']['EI'] = np.zeros(n_lines)     # MoorPy does not have EI, yet
-            fst_vt['MoorDyn']['BA_zeta'] = -1*np.ones(n_lines, dtype=np.int64)
+            fst_vt['MoorDyn']['BA_zeta'] = n_lines * [[-1]]
             fst_vt['MoorDyn']['Ca'] = inputs["line_transverse_added_mass"]
             fst_vt['MoorDyn']['CaAx'] = inputs["line_tangential_added_mass"]
             fst_vt['MoorDyn']['Cd'] = inputs["line_transverse_drag"]
             fst_vt['MoorDyn']['CdAx'] = inputs["line_tangential_drag"]
+            fst_vt['MoorDyn']['NonLinearEA'] = n_lines * [None]
 
             # Connection properties - Points
             n_nodes = mooropt["n_nodes"]
@@ -1738,22 +1740,37 @@ class FASTLoadCases(ExplicitComponent):
             for k in range(n_lines):
                 id1 = discrete_inputs['node_names'].index( mooropt["node1"][k] )
                 id2 = discrete_inputs['node_names'].index( mooropt["node2"][k] )
-                if (fst_vt['MoorDyn']['Attachment'][id1].lower() == 'vessel' and
-                    fst_vt['MoorDyn']['Attachment'][id2].lower().find('fix') >= 0):
-                    fst_vt['MoorDyn']['AttachB'][k] = id1+1
-                    fst_vt['MoorDyn']['AttachA'][k] = id2+1
-                elif (fst_vt['MoorDyn']['Attachment'][id2].lower() == 'vessel' and
-                    fst_vt['MoorDyn']['Attachment'][id1].lower().find('fix') >= 0):
+
+                # Moordyn likes to have its AttachA below AttachB
+                if fst_vt['MoorDyn']['Z'][id1] < fst_vt['MoorDyn']['Z'][id2]:
                     fst_vt['MoorDyn']['AttachB'][k] = id2+1
                     fst_vt['MoorDyn']['AttachA'][k] = id1+1
+
                 else:
-                    logger.warning(discrete_inputs['node_names'])
-                    logger.warning(mooropt["node1"][k], mooropt["node2"][k])
-                    logger.warning(fst_vt['MoorDyn']['Attachment'][id1], fst_vt['MoorDyn']['Attachment'][id2])
-                    raise ValueError('Mooring line seems to be between unknown endpoint types.')
+                    fst_vt['MoorDyn']['AttachB'][k] = id1+1
+                    fst_vt['MoorDyn']['AttachA'][k] = id2+1
 
             # MoorDyn Control - Optional
             fst_vt['MoorDyn']['ChannelID'] = []
+
+            # MoorDyn options
+            fst_vt['MoorDyn']['option_names'] = ['dtM','kbot','cbot','dtIC','TmaxIC','CdScaleIC','threshIC']
+            fst_vt['MoorDyn']['option_values'] = []
+
+            for option in fst_vt['MoorDyn']['option_names']:
+                fst_vt['MoorDyn']['option_values'].append(fst_vt['MoorDyn'][option])
+
+            # MoorDyn output channels: could pull these from schema, but co-pilot will do for now
+            fst_vt['MoorDyn']['option_descriptions'] = [
+                'Time step for MoorDyn',
+                'Bottom spring stiffness',
+                'Bottom damping coefficient',
+                'Time step for initial conditions',
+                'Max time for initial conditions',
+                'Drag scale factor for initial conditions',
+                'Threshold for initial conditions'
+                ]
+
             
             # MAP - linearization only
             for key in fst_vt['MoorDyn']:
@@ -2013,7 +2030,8 @@ class FASTLoadCases(ExplicitComponent):
                 'ws_cut_out':cut_out, 
                 'MHK': modopt['flags']['marine_hydro'],
                 'fix_wind_seeds': fix_wind_seeds,
-                'fix_wave_seeds': fix_wave_seeds,                
+                'fix_wave_seeds': fix_wave_seeds,
+                'initial_condition_table': initial_condition_table,               
             })
         # Generate cases from user inputs
         for i_DLC in range(len(DLCs)):

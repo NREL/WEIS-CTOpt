@@ -240,7 +240,7 @@ class TuneROSCO(ExplicitComponent):
         WISDEM_turbine.GBoxEff      = float(inputs['gearbox_efficiency']) * 100.
         WISDEM_turbine.rated_rotor_speed   = float(inputs['rated_rotor_speed'])
         WISDEM_turbine.rated_power  = float(inputs['rated_power'])
-        WISDEM_turbine.rated_torque = float(inputs['rated_torque']) / WISDEM_turbine.Ng * float(inputs['gearbox_efficiency'])
+        WISDEM_turbine.rated_torque = WISDEM_turbine.rated_power / (WISDEM_turbine.rated_rotor_speed * WISDEM_turbine.Ng * WISDEM_turbine.GenEff/100)  # RT uses: self.rated_power/(self.GenEff/100*self.rated_rotor_speed*self.Ng)
         WISDEM_turbine.max_torque   = WISDEM_turbine.rated_torque * 1.1  # TODO: make this an input if studying constant power
         WISDEM_turbine.v_rated      = float(inputs['rated_rotor_speed'])*float(inputs['R']) / float(inputs['tsr_operational'])
         WISDEM_turbine.v_min        = float(inputs['v_min'])
