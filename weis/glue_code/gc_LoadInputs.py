@@ -1,6 +1,7 @@
 import os
 import os.path as osp
 import copy, logging
+import shutil
 import numpy as np
 
 from rosco import discon_lib_path
@@ -93,7 +94,7 @@ class WindTurbineOntologyPythonWEIS(WindTurbineOntologyPython):
 
 
         # Openfast
-        if self.modeling_options['OpenFAST_Linear']['flag'] or self.modeling_options['OpenFAST']['flag']:
+        if self.modeling_options['OpenFAST_Linear']['flag'] or self.modeling_options['DFSM']['flag'] or self.modeling_options['Level3']['flag']:
             fast = InputReader_OpenFAST()
             self.modeling_options['General']['openfast_configuration']['fst_vt'] = {}
             self.modeling_options['General']['openfast_configuration']['fst_vt']['outlist'] = fast.fst_vt['outlist']
@@ -190,8 +191,11 @@ class WindTurbineOntologyPythonWEIS(WindTurbineOntologyPython):
         # ROSCO
         self.modeling_options['ROSCO']['flag'] = (self.modeling_options['RAFT']['flag'] or
                                                   self.modeling_options['OpenFAST_Linear']['flag'] or
+                                                  self.modeling_options['DFSM']['flag'] or
                                                   self.modeling_options['OpenFAST']['flag'])
         
+        self.modeling_options['flags']['marine_hydro'] = self.wt_init['assembly']['marine_hydro']
+
         if self.modeling_options['ROSCO']['tuning_yaml'] != 'none':  # default is empty
             # Make path absolute if not, relative to modeling options input
             if not osp.isabs(self.modeling_options['ROSCO']['tuning_yaml']):
